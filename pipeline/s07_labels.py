@@ -70,7 +70,10 @@ def placement(p):
     pt = p.representative_point() if not p.contains(p.centroid) else p.centroid
     ang = math.degrees(math.atan2(-long[1], long[0]))  # local z points south
     ang = (ang + 90) % 180 - 90  # keep text upright
-    return [round(pt.x - DAM[0], 1), round(-(pt.y - DAM[1]), 1), round(ang, 1), round(float(np.hypot(*long)))]
+    # The piece's width: area over length is the street's mean width, steadier than the rectangle's short side.
+    width = p.area / max(np.hypot(*long), 1)
+    return [round(pt.x - DAM[0], 1), round(-(pt.y - DAM[1]), 1), round(ang, 1), round(float(np.hypot(*long))),
+            round(float(width), 1)]
 
 
 def main():

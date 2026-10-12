@@ -3,7 +3,7 @@
 Local frame: metres from the Dam, x east, z south (three.js, y up).
 Tile layout (little-endian, every section 4-byte aligned):
   header  u32 magic, nB, nP, nR, nV; f32 originX, originZ
-  B       u32 gid[nB]; i16 year[nB]; u8 flag[nB]; u8 period[nB]; u8 floors[nB];
+  B       u32 gid[nB]; i16 year[nB]; u8 flag[nB]; u8 period[nB]; u8 floors[nB]; u8 energy[nB] (0 none, 1 G … 12 A+++++);
           u32 lay0[nB]; u32 lay1[nB] (layer bits, see s05_layers); u32 partStart[nB+1]
   P       f32 height[nP]; u32 ringStart[nP+1]
   R       u32 vertStart[nR+1]; u8 hole[nR]
@@ -24,7 +24,8 @@ DAM = (121390.0, 487380.0)  # RD New
 TILE = 600.0
 SIMPLIFY = 0.25
 OUT = Path("web/data")
-MAGIC = 0x32424241  # 'ABB2'
+MAGIC = 0x33424241  # 'ABB3'
+ENERGY = ["G", "F", "E", "D", "C", "B", "A", "A+", "A++", "A+++", "A++++", "A+++++"]
 
 
 def pad4(b: bytes) -> bytes:
@@ -46,12 +47,12 @@ def rings_of(geom):
 
 
 def pack_tile(origin, rows):
-    gid, year, flag, period, floors, lay0, lay1, part_start = [], [], [], [], [], [], [], [0]
+    gid, year, flag, period, floors, energy, lay0, lay1, part_start = [], [], [], [], [], [], [], [], [0]
     heights, ring_start, vert_start, holes, verts = [], [0], [0], [], []
     for b in rows:
         gid.append(b["gid"]); year.append(b["year"]); flag.append(b["flag"])
         period.append(b["period"]); floors.append(b["floors"])
-        lay0.append(b["lay0"]); lay1.append(b["lay1"])
+        lay0.append(b["lay0"]); lay1.append(b["lay1"]); energy.append(b["energy"])
         for h, geom in b["parts"]:
             heights.append(h)
             for ring, hole in rings_of(geom):
@@ -71,6 +72,7 @@ def pack_tile(origin, rows):
     out += pad4(np.array(flag, "u1").tobytes())
     out += pad4(np.array(period, "u1").tobytes())
     out += pad4(np.array(floors, "u1").tobytes())
+    out += pad4(np.array(energy, "u1").tobytes())
     out += np.array(lay0, "<u4").tobytes() + np.array(lay1, "<u4").tobytes()
     out += pad4(np.array(part_start, "<u4").tobytes())
     out += pad4(np.array(heights, "<f4").tobytes())
@@ -84,6 +86,8 @@ def pack_tile(origin, rows):
 def main():
     b = gpd.read_parquet("data/buildings.parquet")
     b = b.merge(pd.read_parquet("data/layers.parquet"), on="identificatie", how="left")
+    labels = json.load(open("data/raw/energy.json"))
+    b["energy"] = b.identificatie.str.slice(-16).map(lambda k: ENERGY.index(labels[k]) + 1 if labels.get(k) in ENERGY else 0)
     q = gpd.read_parquet("data/parts.parquet")
     gid = {k: i for i, k in enumerate(b.identificatie)}
     ground = dict(zip(b.identificatie, b.b3_h_maaiveld))
@@ -103,7 +107,7 @@ def main():
         origin = np.array([tx * TILE, tz * TILE])
         rows = [dict(gid=gid[r.identificatie], year=int(r.year), flag=int(r.date_flag),
                      period=int(r.period), floors=int(r.floors),
-                     lay0=int(r.lay0), lay1=int(r.lay1), parts=parts[r.identificatie])
+                     lay0=int(r.lay0), lay1=int(r.lay1), energy=int(r.energy), parts=parts[r.identificatie])
                 for r in grp.itertuples()]
         data = pack_tile(origin, rows)
         name = f"{tx}_{tz}.bin"
@@ -130,7 +134,8 @@ def main():
 
     # Per-building lookup for hover: BAG id, height (dm), floors source, date flag.
     bag = b.identificatie.str.slice(-16).astype("int64").to_numpy()
-    attrs = np.zeros(len(b), dtype=[("bag", "<f8"), ("h", "<u2"), ("fsrc", "u1"), ("flag", "u1"), ("year", "<i2"), ("orig", "<i2"), ("mon", "<u4"), ("lay0", "<u4"), ("lay1", "<u4"), ("wk", "<i4")])
+    attrs = np.zeros(len(b), dtype=[("bag", "<f8"), ("h", "<u2"), ("fsrc", "u1"), ("flag", "u1"), ("year", "<i2"), ("orig", "<i2"), ("mon", "<u4"), ("lay0", "<u4"), ("lay1", "<u4"), ("wk", "<i4"),
+                                    ("energy", "u1"), ("pad", "u1", 3), ("x", "<f4"), ("z", "<f4")])
     attrs["bag"] = bag
     attrs["h"] = np.round(b.height.fillna(0) * 10).clip(0, 65535)
     attrs["fsrc"] = b.floors_src; attrs["flag"] = b.date_flag
@@ -139,6 +144,9 @@ def main():
     attrs["lay0"] = b.lay0; attrs["lay1"] = b.lay1
     wk = pd.read_parquet("data/wiki_index.parquet").set_index("bag").wk
     attrs["wk"] = b.identificatie.str.slice(-16).map(wk).fillna(-1).astype(int)
+    attrs["energy"] = b.energy
+    cen = to_local(np.c_[b.geometry.centroid.x, b.geometry.centroid.y])
+    attrs["x"], attrs["z"] = cen[:, 0], cen[:, 1]
     (OUT / "attrs.bin").write_bytes(attrs.tobytes())
 
     years = b.year.to_numpy()
@@ -152,6 +160,7 @@ def main():
         yearMin=int(years.min()), yearMax=int(years.max()),
         histogram={str(k): v for k, v in sorted(hist.items())},
         attrStride=attrs.dtype.itemsize,
+        energy=dict(labels=ENERGY, counts=[int((b.energy == i).sum()) for i in range(len(ENERGY) + 1)]),
         tiles=index,
         packs=packs,
         stats=dict(buildings=len(b), exact=int((b.date_flag == 0).sum()),

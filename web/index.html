@@ -29,7 +29,9 @@
 <nav class="modes" aria-label="Colour the city by">
   <button data-mode="0" aria-pressed="true">Period</button>
   <button data-mode="1" aria-pressed="false">Floors</button>
-  <button data-mode="2" aria-pressed="false">Layers</button>
+  <button data-mode="2" aria-pressed="false">Energy</button>
+  <button data-mode="3" aria-pressed="false">Context layers</button>
+  <button data-mode="4" aria-pressed="false">Residents</button>
 </nav>
 
 <div class="tally" aria-live="polite">
@@ -37,7 +39,10 @@
   <span class="tally-count"><span id="count">0</span> buildings</span>
 </div>
 
-<aside id="panel" class="panel"></aside>
+<aside id="panel" class="panel">
+  <button class="sheet-handle" aria-expanded="true" aria-controls="panel-body">Show legend</button>
+  <div id="panel-body"></div>
+</aside>
 
 <div id="card" class="card" hidden></div>
 <p class="howto">Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.</p>

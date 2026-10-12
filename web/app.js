@@ -12,7 +12,10 @@ const GROUP_COLORS = ['#ec0000', '#1f4e8c', '#d99a12', '#2e8b57', '#7b3fa0', '#0
 const MAX_GROUPS = GROUP_COLORS.length;
 const ATTR_W = 256;
 const WORKERS = Math.min(4, navigator.hardwareConcurrency || 2);
-const MODE = { period: 0, floors: 1, layers: 2 };
+const MODE = { period: 0, floors: 1, energy: 2, layers: 3, residents: 4 };
+// Energy labels G … A+++++ (index 1–12; 0 = no label), from red through yellow to deep green.
+const ENERGY_COLORS = ['#efeee9', '#c1272d', '#e4572e', '#f08a24', '#f6c445', '#c9d64a', '#8cc152', '#4caf50',
+  '#2e9a49', '#1d8040', '#126b35', '#0b5a2c', '#064a24'];
 
 const [config, layers, attrBuf] = await Promise.all([
   fetch('data/amsterdam.json').then(r => r.json()),
@@ -90,15 +93,15 @@ function textureFor(L) {
   let t = labelTex.get(L.name + L.water);
   if (t) return t;
   const c = document.createElement('canvas'), ctx = c.getContext('2d');
-  const font = `${L.water ? 'italic 500' : '700'} ${LABEL_PX * 0.62}px "Schibsted Grotesk", sans-serif`;
+  const font = `${L.water ? 'italic 500' : '500'} ${LABEL_PX * 0.62}px "Schibsted Grotesk", sans-serif`;
   ctx.font = font;
   c.width = Math.ceil(ctx.measureText(L.name).width + LABEL_PX * 0.4);
   c.height = LABEL_PX;
   ctx.font = font;
   ctx.textBaseline = 'middle';
   ctx.lineWidth = LABEL_PX * 0.12;
-  ctx.strokeStyle = L.water ? 'rgba(200,214,213,0.95)' : 'rgba(250,249,246,0.95)';
-  ctx.fillStyle = L.water ? '#1f4f5e' : '#25292c';
+  ctx.strokeStyle = L.water ? 'rgba(181,199,198,0.85)' : 'rgba(244,243,239,0.85)';
+  ctx.fillStyle = L.water ? '#3c6875' : '#50565b';
   ctx.strokeText(L.name, LABEL_PX * 0.2, LABEL_PX / 2);
   ctx.fillText(L.name, LABEL_PX * 0.2, LABEL_PX / 2);
   t = new THREE.CanvasTexture(c);
@@ -108,13 +111,14 @@ function textureFor(L) {
   return t;
 }
 const labelPlane = new THREE.PlaneGeometry(1, 1);
-const labels = labelData.flatMap(L => L.pts.map(([x, z, ang, len]) => ({ L, x, z, ang, len, mesh: null })))
+const labels = labelData.flatMap(L => L.pts.map(([x, z, ang, len, wid]) => ({ L, x, z, ang, len, wid: wid || 20, mesh: null })))
   .sort((a, b) => a.L.tier - b.L.tier || b.len - a.len);
 function updateLabels(dist) {
-  if (!document.fonts.check('700 16px "Schibsted Grotesk"')) return;
+  if (!document.fonts.check('500 16px "Schibsted Grotesk"')) return;
   // Label height in metres, roughly constant on screen; the canals and main streets read larger.
-  const h1 = THREE.MathUtils.clamp(dist * 0.022, 9, 170), h2 = THREE.MathUtils.clamp(dist * 0.015, 6, 34);
-  const near = Math.max(1200, dist * 1.2), far = Math.max(9000, dist * 3);
+  const h1 = THREE.MathUtils.clamp(dist * 0.014, 4, 44), h2 = THREE.MathUtils.clamp(dist * 0.01, 3, 15);
+  // Names appear only when the camera comes close: canals and main streets first, the rest closer still.
+  const near = dist * 1.2, far = dist * 2;
   // Greedy collision: canals and main streets first, then the longest stretches; a label is dropped
   // when an accepted one already sits within a few label heights of it.
   const taken = new Map(), C = h1 * 5; // one grid, cells as wide as the largest separation
@@ -128,7 +132,7 @@ function updateLabels(dist) {
   };
   for (const l of labels) {
     const d = Math.hypot(l.x - camera.position.x, l.z - camera.position.z);
-    let show = d < (l.L.tier === 1 ? far : near) && (l.L.tier === 1 || dist < 1800);
+    let show = d < (l.L.tier === 1 ? far : near) && dist < (l.L.tier === 1 ? 3200 : 1300);
     const sep = (l.L.tier === 1 ? h1 : h2) * 5;
     if (show && !clear(l, sep)) show = false;
     if (show) {
@@ -146,10 +150,11 @@ function updateLabels(dist) {
       labelGroup.add(l.mesh);
     }
     if (l.mesh) {
-      const h = l.L.tier === 1 ? h1 : h2;
+      // Never taller than the street or canal is wide, so a name stays off the buildings.
+      const h = Math.min(l.L.tier === 1 ? h1 : h2, l.wid * 0.55);
       const w = h * l.mesh.material.map.userData.aspect;
       // A name much longer than its stretch of street would spill over the buildings.
-      if (show && w > l.len * 1.6 && l.L.tier === 2) show = false;
+      if (show && (w > l.len * 1.1 || h < 2.5)) show = false;
       l.mesh.visible = show;
       if (show) l.mesh.scale.set(w, h, 1);
     }
@@ -167,6 +172,7 @@ const uniforms = {
   uGroupBit: { value: Array(MAX_GROUPS).fill(-1) },
   uGroupColor: { value: GROUP_COLORS.map(col) },
   uMaquette: { value: col(MAQUETTE) },
+  uEnergy: { value: ENERGY_COLORS.map(col) },
   uHover: { value: -1 },
   uSelected: { value: -1 },
   uFogColor: { value: col(SKY) },
@@ -182,6 +188,7 @@ const VERT = /* glsl */`
   uniform int uGroupBit[${MAX_GROUPS}];
   uniform vec3 uGroupColor[${MAX_GROUPS}];
   uniform vec3 uMaquette;
+  uniform vec3 uEnergy[13];
   out vec3 vColor;
   out vec3 vWorld;
   out float vGid;
@@ -218,7 +225,9 @@ const VERT = /* glsl */`
       c = uPalette[period];
       if (flag == 1 || flag == 2 || flag == 4) c = mix(c, uMaquette, 0.45);
     } else if (uMode < 1.5) {
-      c = floorsRamp(a.z);
+      c = floorsRamp(mod(a.z, 128.0));
+    } else if (uMode < 2.5) {
+      c = uEnergy[int(a.z / 128.0)];
     } else {
       c = uMaquette;
       for (int g = 0; g < ${MAX_GROUPS}; g++) {
@@ -345,7 +354,9 @@ const DATE_NOTE = [
   'Year from the register of national monuments, which dates the building earlier than BAG does.',
   'Dated by the register of national monuments to a century or part of one; the map spreads it across that span.',
 ];
-const groupsByBit = layers.flatMap(L => L.groups.map(g => ({ ...g, layer: L })));
+const residentsLayer = layers.find(L => L.id === 'residents');
+const contextLayers = layers.filter(L => L !== residentsLayer);
+const groupsByBit = contextLayers.flatMap(L => L.groups.map(g => ({ ...g, layer: L })));
 
 function building(gid) {
   const o = gid * config.attrStride;
@@ -359,6 +370,9 @@ function building(gid) {
     orig: attrs.getInt16(o + 14, true),
     mon: attrs.getUint32(o + 16, true),
     wk: attrs.getInt32(o + 28, true),
+    energy: attrs.getUint8(o + 32),
+    x: attrs.getFloat32(o + 36, true),
+    z: attrs.getFloat32(o + 40, true),
     groups: groupsByBit.filter(g => g.bit < 32 ? (lay0 >>> g.bit) & 1 : (lay1 >>> (g.bit - 32)) & 1),
   };
 }
@@ -372,8 +386,37 @@ fetch('data/wiki.json').then(r => r.json()).then(w => { wiki = w; });
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>`;
 
+// Local metres → RD New → WGS84 (Schreutelkamp and Strang van Hees approximation, ~1 m).
+function toLatLon(x, z) {
+  const dX = (x + config.origin[0] - 155000) * 1e-5, dY = (config.origin[1] - z - 463000) * 1e-5;
+  const lat = 52.15517440 + (3235.65389 * dY - 32.58297 * dX ** 2 - 0.2475 * dY ** 2 - 0.84978 * dX ** 2 * dY
+    - 0.0655 * dY ** 3 - 0.01709 * dX ** 2 * dY ** 2 - 0.00738 * dX + 0.0053 * dX ** 4 - 0.00039 * dX ** 2 * dY ** 3
+    + 0.00033 * dX ** 4 * dY - 0.00012 * dX * dY) / 3600;
+  const lon = 5.38720621 + (5260.52916 * dX + 105.94684 * dX * dY + 2.45656 * dX * dY ** 2 - 0.81885 * dX ** 3
+    + 0.05594 * dX * dY ** 3 - 0.05607 * dX ** 3 * dY + 0.01199 * dY - 0.00256 * dX ** 3 * dY ** 2
+    + 0.00128 * dX * dY ** 4 + 0.00022 * dY ** 2 - 0.00022 * dX ** 2 + 0.00026 * dX ** 5) / 3600;
+  return [lat, lon];
+}
+// The city's street panoramas (CC BY 4.0), turned towards the building from the nearest point on the street.
+function streetView(b) {
+  const [lat, lon] = toLatLon(b.x, b.z);
+  return `https://api.data.amsterdam.nl/panorama/thumbnail/?lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}&width=640&radius=80`;
+}
+const SV_CREDIT = `Street view: ${'<a href="https://data.amsterdam.nl" target="_blank" rel="noopener">Gemeente Amsterdam</a>'}, CC BY 4.0`;
+
 function groupColor(g) {
   return GROUP_COLORS[g.layer.groups.findIndex(x => x.bit === g.bit)] || GROUP_COLORS[0];
+}
+
+function residentsHtml(b, pinned) {
+  const n = residentsLayer?.notes?.[b.bag];
+  if (!n) return '';
+  const people = pinned ? n.people : n.people.slice(0, 3);
+  return `<section><h4>Lived or worked here</h4><ul class="residents">${people.map(p => `<li>
+    <b>${pinned ? link(p.url, p.person) : esc(p.person)}</b>${p.born ? ` <span>${esc(p.born)}${p.died ? '–' + esc(p.died) : ''}</span>` : ''}
+    ${p.desc ? `<div class="desc">${esc(p.desc)}</div>` : ''}
+    ${pinned ? `<blockquote lang="nl">${esc(p.quote)}</blockquote>` : ''}</li>`).join('')}</ul>
+    ${!pinned && n.people.length > 3 ? `<p class="why">and ${n.people.length - 3} more</p>` : ''}</section>`;
 }
 
 // The card reads top to bottom: photo, name and year; what the building is; the layers it belongs to and why;
@@ -389,6 +432,7 @@ function cardHtml(gid, pinned) {
     w?.architects?.length && [w.architects.length > 1 ? 'Architects' : 'Architect', w.architects.map(esc).join(', ')],
     w?.styles?.length && ['Style', w.styles.map(esc).join(', ')],
     b.mon && ['National monument', `no. ${b.mon}`],
+    b.energy && ['Energy label', `<span class="elabel" style="background:${ENERGY_COLORS[b.energy]}">${config.energy.labels[b.energy - 1]}</span>`],
   ].filter(Boolean);
   const credit = im && (pinned
     ? `${link(im.page || im.thumb, im.artist || 'Wikimedia Commons')}${im.license ? `, ${im.licenseUrl ? link(im.licenseUrl, im.license) : esc(im.license)}` : ''}`
@@ -406,13 +450,16 @@ function cardHtml(gid, pinned) {
   const dating = b.orig !== b.year ? `${DATE_NOTE[b.flag] || ''} BAG gives ${b.orig}.` : DATE_NOTE[b.flag];
   return `
     ${pinned ? '<button class="card-close" aria-label="Close">×</button>' : ''}
-    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>Photo: ${credit}</figcaption></figure>` : ''}
+    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>Photo: ${credit}</figcaption></figure>`
+      : `<figure class="photo sv"><img data-sv="${esc(streetView(b))}" alt="" onerror="this.parentElement.remove()"><figcaption>${pinned ? SV_CREDIT : 'Street view: Gemeente Amsterdam, CC BY 4.0'}</figcaption></figure>`}
     <header class="card-head">
       ${w?.label ? `<h3>${esc(w.label)}</h3>` : ''}
       <div class="when"><span class="y">${b.flag && b.flag !== 3 ? 'c. ' : ''}${b.year}</span>
         <span class="period"><i style="background:${period.color}"></i>${esc(period.label)}</span></div>
     </header>
     ${pinned && w?.wiki?.extract ? `<section><p class="extract">${esc(w.wiki.extract)}</p></section>` : ''}
+    ${residentsHtml(b, pinned)}
+    ${pinned && im ? `<section><h4>From the street</h4><figure class="photo sv inline"><img data-sv="${esc(streetView(b))}" alt="" onerror="this.parentElement.parentElement.remove()"><figcaption>${SV_CREDIT}</figcaption></figure></section>` : ''}
     ${inLayers ? `<section><h4>In layers</h4><ul class="chips">${inLayers}</ul></section>` : ''}
     <section><dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></section>
     ${dating ? `<section><h4>Dating</h4><p class="why">${dating}</p></section>` : ''}
@@ -422,6 +469,15 @@ function cardHtml(gid, pinned) {
 
 const card = document.getElementById('card');
 let pinnedGid = -1;
+let svTimer = null;
+function loadStreetViews(delay) {
+  clearTimeout(svTimer);
+  svTimer = setTimeout(() => card.querySelectorAll('img[data-sv]').forEach(img => {
+    img.addEventListener('load', () => placeCard(...(pointer || lastPin)), { once: true });
+    img.src = img.dataset.sv;
+  }), delay);
+}
+let lastPin = [0, 0];
 function placeCard(x, y) {
   const r = card.getBoundingClientRect();
   card.style.left = Math.max(12, Math.min(x + 18, innerWidth - r.width - 12)) + 'px';
@@ -429,7 +485,7 @@ function placeCard(x, y) {
 }
 let hoverGid = -1;
 function showCard(gid, x, y) {
-  if (pinnedGid >= 0) return;
+  if (pinnedGid >= 0 || phone.matches) return;
   if (gid < 0) { card.hidden = true; hoverGid = -1; return; }
   if (gid !== hoverGid || card.hidden) {
     // Re-render only when the building changes, so the photo is not reloaded every frame.
@@ -437,6 +493,7 @@ function showCard(gid, x, y) {
     card.innerHTML = cardHtml(gid, false);
     card.classList.remove('pinned');
     card.hidden = false;
+    loadStreetViews(350);
     card.querySelector('img')?.addEventListener('load', () => placeCard(...(pointer || [x, y])));
   }
   placeCard(x, y);
@@ -448,6 +505,9 @@ function pinCard(gid, x, y) {
   if (gid < 0) { card.hidden = true; card.classList.remove('pinned'); return; }
   card.innerHTML = cardHtml(gid, true);
   card.classList.add('pinned');
+  lastPin = [x, y];
+  collapsePanelOnPhone();
+  loadStreetViews(0);
   card.hidden = false;
   card.querySelector('.card-close').onclick = () => pinCard(-1);
   card.querySelector('img')?.addEventListener('load', () => placeCard(x, y));
@@ -498,7 +558,19 @@ function stepFlight(now) {
 }
 
 // ---------- Panel ----------
-const panel = document.getElementById('panel');
+const panelEl = document.getElementById('panel');
+const panel = document.getElementById('panel-body');
+const sheetHandle = panelEl.querySelector('.sheet-handle');
+const phone = matchMedia('(max-width: 720px)');
+// On a phone the panel is a sheet: folded to one line until opened, and folded again when the city is the point.
+function setCollapsed(c) {
+  panelEl.classList.toggle('collapsed', c);
+  sheetHandle.setAttribute('aria-expanded', String(!c));
+  sheetHandle.textContent = c ? 'Show legend' : 'Hide legend';
+}
+sheetHandle.onclick = () => setCollapsed(!panelEl.classList.contains('collapsed'));
+function collapsePanelOnPhone() { if (phone.matches) setCollapsed(true); }
+setCollapsed(phone.matches);
 const totals = periods.map(() => 0);
 for (const v of Object.values(config.histogram)) v.forEach((n, i) => totals[i] += n);
 const fmt = n => n.toLocaleString('en');
@@ -526,19 +598,47 @@ function renderPanel() {
       <div class="ramp" style="background:linear-gradient(90deg,#dbe3e6,#7da8bf,#2b5c8c,#0d1a40)"></div>
       <div class="ramp-scale"><span>1</span><span>3</span><span>8</span><span>20</span><span>40+</span></div>
       <p class="note">${fmt(config.stats.floorsBag3d)} buildings take their storeys from the 3D BAG model; the rest, ${fmt(config.stats.floorsHeight)}, from their height divided by 3.2 m.</p>`;
+  } else if (mode === MODE.energy) {
+    const e = config.energy;
+    panel.innerHTML = `<h2>Energy label</h2><div class="energy-scale">${e.labels.map((l, i) => `
+      <div><i style="background:${ENERGY_COLORS[i + 1]}"></i><span>${l}</span><span class="n">${fmt(e.counts[i + 1])}</span></div>`).reverse().join('')}</div>
+      <p class="note">The label most homes in a building carry. ${fmt(e.counts[0])} buildings, white on the map, have no registered label.</p>
+      <a class="src" href="https://www.atlasleefomgeving.nl/energielabels-van-gebouwen" target="_blank" rel="noopener">RVO energy labels, via Atlas Leefomgeving</a>`;
+  } else if (mode === MODE.residents) {
+    const notes = Object.entries(residentsLayer?.notes || {});
+    const people = notes.flatMap(([bag, n]) => n.people.map(p => ({ ...p, bag, at: n.at })))
+      .sort((a, b) => b.links - a.links);
+    panel.innerHTML = `<h2 class="layer-title">Who lived here</h2>
+      <p class="layer-intro">${esc(residentsLayer?.text || '')}</p>
+      <input class="filter" type="search" placeholder="Find a person" aria-label="Find a person">
+      <ul class="stories people">${people.map(p => `<li data-q="${esc((p.person + ' ' + (p.desc || '')).toLowerCase())}">
+        <button class="story" data-bag="${p.bag}"><b>${esc(p.person)}</b>
+        <span>${[p.born && p.died ? `${p.born}–${p.died}` : p.born, p.desc].filter(Boolean).map(esc).join(', ')}</span>
+        <span class="addr">${esc(p.address)}</span></button></li>`).join('')}</ul>
+      ${residentsLayer?.caveat ? `<p class="caveat">${esc(residentsLayer.caveat)}</p>` : ''}`;
+    panel.querySelector('.filter').oninput = e => {
+      const q = e.target.value.toLowerCase();
+      panel.querySelectorAll('.people li').forEach(li => { li.hidden = q && !li.dataset.q.includes(q); });
+    };
+    panel.querySelectorAll('.story').forEach(b => b.onclick = () => {
+      const n = residentsLayer.notes[b.dataset.bag];
+      collapsePanelOnPhone();
+      flyTo(n.at[0], n.at[1], () => { const gid = gidOf(b.dataset.bag); if (gid >= 0) pinCard(gid, innerWidth * 0.62, innerHeight * 0.18); });
+    });
   } else if (!activeLayer) {
-    const sections = [...new Set(layers.map(L => L.section))].sort((a, b) => SECTION_ORDER.indexOf(a) - SECTION_ORDER.indexOf(b));
-    panel.innerHTML = sections.map(sec => `<h2 class="section">${esc(sec)}</h2><div class="layers">${layers.filter(L => L.section === sec).map(L => `
+    const sections = [...new Set(contextLayers.map(L => L.section))].sort((a, b) => SECTION_ORDER.indexOf(a) - SECTION_ORDER.indexOf(b));
+    panel.innerHTML = sections.map(sec => `<h2 class="section">${esc(sec)}</h2><div class="layers">${contextLayers.filter(L => L.section === sec).map(L => `
       <button class="layer" data-id="${L.id}">
         <b>${esc(L.title)}</b><span class="n">${fmt(L.count)}</span><span class="era">${esc(L.era)}</span>
       </button>`).join('')}</div>`).join('');
-    panel.querySelectorAll('.layer').forEach(b => b.onclick = () => setLayer(layers.find(l => l.id === b.dataset.id)));
+    panel.querySelectorAll('.layer').forEach(b => b.onclick = () => setLayer(contextLayers.find(l => l.id === b.dataset.id)));
   } else {
     panel.innerHTML = `<button class="back">All layers</button>
       <h2 class="layer-title">${activeLayer.title}</h2><p class="layer-era">${activeLayer.era}</p>${layerDetail(activeLayer)}`;
     panel.querySelector('.back').onclick = () => setLayer(null);
     panel.querySelectorAll('.story').forEach(b => b.onclick = () => {
       const n = activeLayer.notes[b.dataset.bag];
+      collapsePanelOnPhone();
       flyTo(n.at[0], n.at[1], () => {
         const gid = gidOf(b.dataset.bag);
         if (gid >= 0) pinCard(gid, innerWidth * 0.62, innerHeight * 0.18);
@@ -575,6 +675,11 @@ function setLayer(L) {
 document.querySelectorAll('.modes button').forEach(b => b.onclick = () => {
   uniforms.uMode.value = +b.dataset.mode;
   document.querySelectorAll('.modes button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  const bits = Array(MAX_GROUPS).fill(-1);
+  if (uniforms.uMode.value === MODE.residents && residentsLayer) bits[0] = residentsLayer.groups[0].bit;
+  else if (activeLayer) activeLayer.groups.forEach((g, i) => { if (groupOn[g.bit] !== false) bits[i] = g.bit; });
+  uniforms.uGroupBit.value = bits;
+  if (!phone.matches) setCollapsed(false);
   renderPanel(); drawHist();
 });
 
@@ -588,6 +693,7 @@ const xOf = y => (y - T0) / (T1 - T0) * hist.clientWidth;
 const yearOf = x => Math.round(T0 + x / hist.clientWidth * (T1 - T0));
 
 function layerGroupsShown() {
+  if (uniforms.uMode.value === MODE.residents && residentsLayer) return [{ ...residentsLayer.groups[0], color: GROUP_COLORS[0] }];
   if (uniforms.uMode.value !== MODE.layers || !activeLayer) return [];
   return activeLayer.groups.map((g, i) => ({ ...g, color: GROUP_COLORS[i] })).filter(g => groupOn[g.bit] !== false);
 }
@@ -645,7 +751,8 @@ function drawHist() {
   hctx.globalAlpha = 1;
   hctx.fillStyle = '#5d6266';
   hctx.font = '500 11px "Schibsted Grotesk", sans-serif';
-  for (let y = Math.ceil(T0 / 100) * 100; y <= T1; y += 100) hctx.fillText(y, Math.max(0, xOf(y) - 13), h - 4);
+  const step = w < 500 ? 200 : 100;
+  for (let y = Math.ceil(T0 / step) * step; y <= T1; y += step) hctx.fillText(y, Math.min(w - 28, Math.max(0, xOf(y) - 13)), h - 4);
   hctx.fillStyle = '#000';
   hctx.fillRect(xOf(Y) - 1, 0, 2, plotH);
   if (Yf >= T0) { hctx.fillStyle = '#5d6266'; hctx.fillRect(xOf(Yf) - 0.5, 0, 1, plotH); }

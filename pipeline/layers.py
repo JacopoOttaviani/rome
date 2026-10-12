@@ -437,3 +437,22 @@ def _curated_layer(L):
 
 for _L in json.load(open("data/curated.json")):
     _curated_layer(_L)
+
+
+# Residents: its own mode in the viewer, not one of the context layers.
+def _residents():
+    out = {}
+    for r in json.load(open("data/residents.json")):
+        n = out.setdefault(r["bag"], ("res", {"name": r["person"], "people": []}))[1]
+        n["people"].append({k: r[k] for k in ("person", "born", "died", "desc", "quote", "url", "links", "address")})
+    return out
+
+
+LAYERS.append(dict(
+    id="residents", section="Residents", title="Who lived here", era="1600–today",
+    text=("Painters, writers, scientists and sailors whose Wikipedia biography names the Amsterdam address where "
+          "they lived or worked. Pick a name to fly to the house."),
+    caveat=("Found automatically in Dutch Wikipedia and matched to today's address; house numbers have sometimes "
+            "changed, and some houses were rebuilt since."),
+    source=("Dutch Wikipedia, via Wikidata", "https://nl.wikipedia.org"),
+    groups=[("res", "Home of a well-known resident")], source_fn=_residents))
