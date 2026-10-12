@@ -29,6 +29,8 @@ h1 { position: relative; }
 .layrs { font-family: "Schibsted Grotesk", sans-serif; position: absolute; left: 0; top: 0; writing-mode: vertical-rl; transform: rotate(180deg); display: flex;
   align-items: center; justify-content: center; background: var(--red); color: var(--paper); font-weight: 800;
   line-height: 1; letter-spacing: .14em; padding: 0 .3em; border-radius: 2px; box-sizing: border-box; }
+.layrs { visibility: hidden; }
+.layrs.fitted { visibility: visible; }
 .baseline { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
 .sibling { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 124px);
   color: var(--muted); font-size: 12px; text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
