@@ -1,46 +1,58 @@
 # Amsterdam, building by building
 
-A static 3D map of every building in Amsterdam, coloured by construction year.
-Architecture after paris.bogachev.fr: offline Python pipeline → binary 600 m tiles → three.js.
+Every building standing in Amsterdam today, 192,000 of them, by age and historical context.
+**Live:** https://stop-token.com/lab/amsterdam/
 
-## Run
+A non-commercial project, made for curiosity and learning. Inspired by Sasha Bogachev's
+[Paris, building by building](https://paris.bogachev.fr); the architecture, a data pipeline feeding a three.js city, follows his.
+
+**Want to add a layer?** See [CONTRIBUTING.md](CONTRIBUTING.md). A layer can be a hand-picked list of buildings with a story
+each, or a rule over an open dataset.
+
+## How it works
+
+```
+open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON) ──► web/ (three.js, no build step)
+```
+
+| Step | What it does |
+|---|---|
+| `s00_fetch_*` | Downloads BGT water, the city's open datasets, energy labels |
+| `s01_load` | 3D BAG tiles → buildings and their LoD 1.3 parts |
+| `s02_attributes` | Cleans construction years (placeholders, rounded years, monument register), floors, heights |
+| `s03_tiles` | Packs 600 m tiles into 8 bundles, writes per-building attributes and the city config |
+| `s04_water` | Water and land polygons |
+| `s05_layers` | Resolves every context layer to a bit per building; adds Dutch texts |
+| `s06_wiki` | Names, photos and extracts from Wikidata, Wikipedia and Commons |
+| `s07_labels` | Street and canal names placed along their outlines |
+| `s08_curated` | Checks hand-written stories against Wikipedia and geocodes them |
+| `s09_residents` | Finds addresses of well-known residents in Dutch Wikipedia |
+| `s10_commons` | Finds more building photos on Commons by address in the file name |
+
+## Run it
 
 ```bash
 uv sync
-uv run python -m pipeline.s00_fetch_water # BGT waterdeel → data/raw/bgt_waterdeel.geojson
-uv run python -m pipeline.s01_load        # 3D BAG tiles → data/panden.parquet, data/parts.parquet
-uv run python -m pipeline.s02_attributes  # dates, floors, heights → data/buildings.parquet
-uv run python -m pipeline.s03_tiles       # → web/data/tiles, attrs.bin, amsterdam.json
-uv run python -m pipeline.s04_water       # → web/data/water.bin, land.bin
+# raw inputs: see the docstrings of s00_* and s01_load (3D BAG tiles, PDOK boundary, RCE and Wikidata exports)
+for s in s01_load s02_attributes s05_layers s03_tiles s04_water s06_wiki s07_labels; do uv run python -m pipeline.$s; done
 python3 -m http.server 8642 --directory web
 ```
 
-Raw inputs (not in git): `data/raw/boundary.json` (PDOK bestuurlijke gebieden, gemeente Amsterdam),
-`data/raw/tile_index.fgb` and `data/raw/3dbag/*.gpkg` (3D BAG v20250903, 202 tiles),
-`data/raw/rce_descriptions.csv` (RCE linked data SPARQL, rijksmonument descriptions, Amsterdam),
-`data/raw/wd_monuments.csv` (Wikidata SPARQL: P359 rijksmonument → P5208 BAG pand).
+Raw downloads (`data/`) and generated output (`web/data/`) are not in the repository: they are large and rebuilt by the pipeline.
 
 ## Data decisions
 
-- Source of footprints, years, heights, LoD1.3 parts: 3D BAG (CC BY 4.0), which carries BAG `oorspronkelijkbouwjaar`.
-- Year flags: `exact` (BAG), `faint` (pre-1800 round year in excess of its neighbours, spread across the rounding step),
-  `estimated` (placeholder, median of 12 nearest dated buildings within 1 km), `monument` / `monument approx` (RCE).
-- Placeholders: 1005 (official, 729 panden) and 1905 (unofficial: 1,184 within 1.5 km of the Dam vs ~100 for 1904/1906).
-  The 1905 excess over the neighbouring years' average is estimated, nearest the Dam first.
-- Rijksmonumenten: the first date in the RCE description (Roman century ± quarter/half, year, or Dutch ordinal)
-  dates the building. RCE replaces BAG only when BAG is more than 10 years later than the RCE span; when BAG is earlier,
-  BAG stays, because RCE often dates a later facade. Linked through Wikidata P5208 (93% of Amsterdam's 7,679 monuments).
-  Checks: Westerkerk BAG 1761 → 1627; Munttoren BAG 1886 → 1486; Zuiderkerk, Noorderkerk, Trippenhuis unchanged.
-- Wikidata inception (P571) is not used: it often records a restoration (Rembrandthuis: 1907).
-- Round years after 1800 are not inflated (11% end in 0), so smoothing applies only before 1800.
-- Floors: `b3_bouwlagen` when below its cap of 5, otherwise height ÷ 3.2 m.
-- Ground is flat (base 0); heights are roof 70th percentile minus `b3_h_maaiveld`.
+- **Years.** BAG gives every building a construction year but not always a true one: 729 carry the placeholder 1005,
+  and the old centre has ten times more buildings dated 1905 than the years around it. Both are estimated from dated
+  neighbours. Round years before 1800 are spread across their rounding step. Where the national monument register (RCE)
+  dates a building earlier than BAG, which often records a rebuilding, the register wins (Westerkerk: 1761 → 1627).
+- **Stories.** Every hand-written story names its Wikipedia article; `s08_curated` checks that the article contains the
+  story's key facts and the address, then geocodes the address to its BAG building. Entries that fail are dropped.
+- **Not included.** The last addresses of Holocaust victims: the only dataset linking the Joods Monument to buildings has
+  no open licence.
 
-## Next
+## Licence
 
-1. Addresses and streets from BAG: search, street selection, street elevation view.
-2. Phone tile set (coarser simplification), LOD by distance.
-3. Wikidata / Wikipedia / Commons enrichment for named buildings.
-4. About page with the imprecision section written for Amsterdam.
-5. Monuments without a Wikidata BAG link (~7%): match through the RCE address (`ceo:volledigAdres`).
-6. Gemeentelijke monumenten Amsterdam as a third date source.
+Code: MIT (see [LICENSE](LICENSE)). Data keeps the licence of its source: 3D BAG CC BY 4.0; BAG, BGT, RCE, Wikidata and
+most City of Amsterdam data CC0; some city datasets and the street panoramas CC BY 4.0; Wikipedia text CC BY-SA;
+Wikimedia Commons photos each under their own licence, credited in the app.

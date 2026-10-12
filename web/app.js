@@ -28,7 +28,7 @@ const attrs = new DataView(attrBuf);
 // English and Dutch. Data carries `<field>_nl` next to each English text; the interface strings are below.
 const NL_UI = {
   'Every building standing today, by age and historical context.': 'Elk gebouw dat er nu staat, naar leeftijd en historische context.',
-  'About': 'Over',
+  'About': 'Over', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
   'Wikidata records this building as their residence.': 'Volgens Wikidata woonde deze persoon hier.',
   'Wikidata records this building as their place of work.': 'Volgens Wikidata werkte deze persoon hier.',
   'Wikidata records this building as their birthplace.': 'Volgens Wikidata werd deze persoon hier geboren.',
@@ -713,6 +713,7 @@ function renderPanel() {
       <button class="layer" data-id="${L.id}">
         <b>${esc(tr(L, 'title'))}</b><span class="n">${fmt(L.count)}</span><span class="era">${esc(tr(L, 'era'))}</span>
       </button>`).join('')}</div>`).join('');
+    panel.insertAdjacentHTML('beforeend', `<p class="contribute"><a href="https://github.com/alexbarakov/amsterdam-by-building/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">${t('Add a layer on GitHub')}</a></p>`);
     panel.querySelectorAll('.jump button').forEach(b => b.onclick = () =>
       panel.querySelector(`#sec-${b.dataset.sec.replace(/\W+/g, '-')}`).scrollIntoView({ behavior: 'smooth', block: 'start' }));
     panel.querySelectorAll('.layer').forEach(b => b.onclick = () => setLayer(contextLayers.find(l => l.id === b.dataset.id)));
