@@ -1,4 +1,5 @@
 """Verify the curated entries against their Wikipedia articles and geocode them to BAG buildings."""
+import csv
 import json
 import re
 from functools import cache
@@ -48,6 +49,17 @@ def geocode(address):
     return (hit.bag.iloc[0] if not hit.empty else None), docs[0]["weergavenaam"]
 
 
+@cache
+def wikidata_bags():
+    """Wikipedia article URL → BAG ids of the building it is about, from Wikidata (P5208)."""
+    out = {}
+    for r in csv.DictReader(open("data/raw/wd_buildings.csv")):
+        for k in ("en", "nl"):
+            if r[k]:
+                out.setdefault(r[k], set()).add(r["bag"].zfill(16))
+    return out
+
+
 def main():
     out, dropped = [], []
     for L in CURATED:
@@ -55,12 +67,16 @@ def main():
         for name, address, story, ref, checks, *group in L["entries"]:
             text, url = article(ref)
             missing = [c for c in checks if c not in text]
-            bag, found = geocode(address)
-            if missing or not bag:
+            # An article about the building itself names its BAG ids in Wikidata: trust those over the
+            # geocoder, which can land on a neighbouring part of a large complex (the Palace, the Scheepvaarthuis).
+            own = wikidata_bags().get(url)
+            bags, found = (sorted(own), "wikidata") if own else ((lambda b, f: ([b] if b else [], f))(*geocode(address)))
+            if missing or not bags:
                 dropped.append((L["id"], name, missing, found))
                 continue
-            entries.append(dict(name=name, address=address, bag=bag, story=story, source=url,
-                                group=group[0] if group else L["id"]))
+            for bag in bags:
+                entries.append(dict(name=name, address=address, bag=bag, story=story, source=url,
+                                    group=group[0] if group else L["id"]))
         out.append(dict({k: v for k, v in L.items() if k != "entries"}, entries=entries))
         print(f'{L["id"]:10s} {len(entries)}/{len(L["entries"])}')
     for d in dropped:

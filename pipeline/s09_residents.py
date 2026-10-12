@@ -115,6 +115,28 @@ def wikitexts(titles):
     return texts
 
 
+BUILDING_ARTICLES = {}  # nl Wikipedia title → BAG ids of the building the article is about (Wikidata P5208)
+
+
+def building_articles():
+    import csv
+    for r in csv.DictReader(open("data/raw/wd_buildings.csv")):
+        if r["nl"]:
+            t = requests.utils.unquote(r["nl"].rsplit("/wiki/", 1)[1]).replace("_", " ")
+            BUILDING_ARTICLES.setdefault(t, set()).add(r["bag"].zfill(16))
+
+
+def mark_buildings(wt):
+    """Links to building articles become ⟦title⟧ markers, so a sentence can point at a building by name
+    (the Rembrandthuis) as well as by address."""
+    def repl(m):
+        title = m.group(1).strip()
+        title = title[:1].upper() + title[1:]
+        text = m.group(2) or m.group(1)
+        return f"⟦{title}⟧{text}" if title in BUILDING_ARTICLES else m.group(0)
+    return re.sub(r"\[\[([^|\]#]+)(?:\|([^\]]*))?\]\]", repl, wt)
+
+
 def clean(wt):
     """Wikitext to plain sentences; headings become sentence breaks so a quote never spans sections."""
     wt = re.sub(r"<ref[^>]*/>|<ref[^>]*>.*?</ref>|<!--.*?-->", "", wt, flags=re.S)
@@ -149,6 +171,7 @@ def geocode(address, buildings):
 
 
 def main():
+    building_articles()
     ppl = people()
     labels = json.load(open("web/data/labels.json"))
     # Streets worth a search: the named canals and main streets, and every street within 2.5 km of the Dam.
@@ -170,7 +193,7 @@ def main():
     found = []
     for p in ppl:
         title = requests.utils.unquote(p["article"].rsplit("/wiki/", 1)[1]).replace("_", " ")
-        text = clean(texts.get(title, ""))
+        text = clean(mark_buildings(texts.get(title, "")))
         seen = set()
         surname = p["pLabel"].split()[-1].lower()
         for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z0-9])", text):
@@ -179,7 +202,15 @@ def main():
             # The sentence must be about this person: their surname, or a pronoun opening it.
             if surname not in sentence.lower() and not SELF.match(sentence.strip()):
                 continue
-            for m in addr_re.finditer(sentence):
+            quote = re.sub(r"⟦[^⟧]*⟧", "", sentence).strip()[:400]
+            for t in re.findall(r"⟦([^⟧]*)⟧", sentence):
+                for bag in BUILDING_ARTICLES[t]:
+                    if ("article", bag) not in seen:
+                        seen.add(("article", bag))
+                        found.append(dict(bag=bag, address=t, person=p["pLabel"], wikidata=p["p"], url=p["article"],
+                                          desc=p.get("desc"), born=(p.get("born") or "")[:4], died=(p.get("died") or "")[:4],
+                                          img=p.get("img"), links=int(p["links"]), quote=quote))
+            for m in re.finditer(addr_re, re.sub(r"⟦[^⟧]*⟧", "", sentence)):
                 address = f"{m.group(1)} {m.group(2)}"
                 if address in seen:
                     continue
@@ -189,8 +220,20 @@ def main():
                     found.append(dict(bag=bag, address=address, person=p["pLabel"], wikidata=p["p"],
                                       url=p["article"], desc=p.get("desc"), born=(p.get("born") or "")[:4],
                                       died=(p.get("died") or "")[:4], img=p.get("img"),
-                                      links=int(p["links"]), quote=sentence.strip()[:400]))
-    found.sort(key=lambda f: -f["links"])
+                                      links=int(p["links"]), quote=quote))
+    import csv
+    for r in csv.DictReader(open("data/raw/wd_residents.csv")):
+        why = {"P551": "Wikidata records this building as their residence.",
+               "P937": "Wikidata records this building as their place of work.",
+               "P19": "Wikidata records this building as their birthplace.",
+               "P20": "Wikidata records this building as the place where they died."}[r["prop"].rsplit("/", 1)[1]]
+        found.append(dict(bag=r["bag"].zfill(16), address="", person=r["personLabel"], wikidata=r["person"],
+                          url=r["person"], desc=r["desc"], born=r["born"][:4], died=r["died"][:4], img=r["img"],
+                          links=0, quote=why))
+    uniq = {}
+    for f in found:  # one entry per person and building; Wikipedia quotes come first, so they win
+        uniq.setdefault((f["bag"], f["person"]), f)
+    found = sorted(uniq.values(), key=lambda f: -f["links"])
     Path("data/residents.json").write_text(json.dumps(found, ensure_ascii=False, indent=1))
     print(len(found), "addresses;", len({f["person"] for f in found}), "people;", len({f["bag"] for f in found}), "buildings")
 

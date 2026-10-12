@@ -12,7 +12,7 @@ const GROUP_COLORS = ['#ec0000', '#1f4e8c', '#d99a12', '#2e8b57', '#7b3fa0', '#0
 const MAX_GROUPS = GROUP_COLORS.length;
 const ATTR_W = 256;
 const WORKERS = Math.min(4, navigator.hardwareConcurrency || 2);
-const MODE = { period: 0, floors: 1, energy: 2, layers: 3, residents: 4 };
+const MODE = { period: 0, floors: 1, energy: 2, layers: 3 };
 // Energy labels G … A+++++ (index 1–12; 0 = no label), from red through yellow to deep green.
 const ENERGY_COLORS = ['#efeee9', '#c1272d', '#e4572e', '#f08a24', '#f6c445', '#c9d64a', '#8cc152', '#4caf50',
   '#2e9a49', '#1d8040', '#126b35', '#0b5a2c', '#064a24'];
@@ -23,6 +23,50 @@ const [config, layers, attrBuf] = await Promise.all([
   fetch('data/attrs.bin').then(r => r.arrayBuffer()),
 ]);
 const attrs = new DataView(attrBuf);
+
+// ---------- Language ----------
+// English and Dutch. Data carries `<field>_nl` next to each English text; the interface strings are below.
+const NL_UI = {
+  'Every building standing today, by age and historical context.': 'Elk gebouw dat er nu staat, naar leeftijd en historische context.',
+  'About': 'Over',
+  'Wikidata records this building as their residence.': 'Volgens Wikidata woonde deze persoon hier.',
+  'Wikidata records this building as their place of work.': 'Volgens Wikidata werkte deze persoon hier.',
+  'Wikidata records this building as their birthplace.': 'Volgens Wikidata werd deze persoon hier geboren.',
+  'Wikidata records this building as the place where they died.': 'Volgens Wikidata overleed deze persoon hier.',
+  'Period': 'Periode', 'Context layers': 'Contextlagen', 'Floors': 'Verdiepingen', 'Energy': 'Energie',
+  'buildings': 'gebouwen', 'Building the city': 'De stad wordt gebouwd',
+  'Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.': 'Sleep om te draaien. Rechts slepen of Shift-slepen om te verschuiven. Scroll om te zoomen.',
+  'Show legend': 'Legenda tonen', 'Hide legend': 'Legenda verbergen',
+  'Built in': 'Gebouwd in', 'Click a period to see it alone. Paler buildings have an approximate year.': 'Klik op een periode om alleen die te zien. Lichtere gebouwen hebben een geschat bouwjaar.',
+  'Storeys': 'Verdiepingen', 'Energy label': 'Energielabel',
+  'RVO energy labels, via Atlas Leefomgeving': 'Energielabels van RVO, via Atlas Leefomgeving',
+  'All context layers': 'Alle contextlagen', 'Find a person': 'Zoek een persoon', 'Buildings and their stories': 'Gebouwen en hun verhalen',
+  'Height': 'Hoogte', 'from the 3D BAG model': 'uit het 3D BAG-model', 'height ÷ 3.2 m': 'hoogte ÷ 3,2 m',
+  'Architect': 'Architect', 'Architects': 'Architecten', 'Style': 'Stijl', 'National monument': 'Rijksmonument',
+  'In layers': 'In lagen', 'Dating': 'Datering', 'Read more': 'Meer lezen', 'From the street': 'Vanaf de straat',
+  'Lived or worked here': 'Woonde of werkte hier', 'Source': 'Bron', 'Photo': 'Foto', 'Street view': 'Straatbeeld',
+  'Wikipedia': 'Wikipedia', 'Dutch Wikipedia': 'Nederlandstalige Wikipedia', 'Monument register': 'Monumentenregister',
+  'BAG register': 'BAG-register', 'BAG gives': 'De BAG geeft',
+  'Click for the story and sources': 'Klik voor het verhaal en de bronnen', 'Click to keep this card open': 'Klik om deze kaart open te houden',
+  'Play the city\'s growth': 'Speel de groei van de stad af', 'Pause': 'Pauze', 'Close': 'Sluiten',
+  'The register gives a round year here, more often than neighbouring years predict. Read it as “around then”.': 'Het register geeft hier een rond jaartal, vaker dan de omliggende jaren doen verwachten. Lees het als ‘rond die tijd’.',
+  'The register has no real year (placeholder 1005, or one of the surplus 1905s of the old centre). Estimated from the nearest dated buildings.': 'Het register heeft geen echt jaartal (de plaatshouder 1005, of een van de overtollige 1905’s in het oude centrum). Geschat uit de dichtstbijzijnde gedateerde gebouwen.',
+  'Year from the register of national monuments, which dates the building earlier than BAG does.': 'Jaartal uit het rijksmonumentenregister, dat het gebouw eerder dateert dan de BAG.',
+  'Dated by the register of national monuments to a century or part of one; the map spreads it across that span.': 'Door het rijksmonumentenregister gedateerd op een eeuw of een deel daarvan; de kaart spreidt het over die periode.',
+  'Year from Wikidata, which dates the building earlier than BAG does; the register of national monuments gives no date.': 'Jaartal uit Wikidata, dat het gebouw eerder dateert dan de BAG; het rijksmonumentenregister geeft geen datering.',
+  'Before 1600': 'Vóór 1600', '1600–1665 Canal ring': '1600–1665 Grachtengordel', '1870–1913 Nineteenth-century belt': '1870–1913 Negentiende-eeuwse gordel',
+  '1914–1940 Amsterdam School': '1914–1940 Amsterdamse School', '1941–1964 Garden cities': '1941–1964 Tuinsteden', '1965–1984 Bijlmer era': '1965–1984 Bijlmertijd',
+  '1985–1999 Eastern docks': '1985–1999 Oostelijk Havengebied', '2000– IJburg, Zuidas, Noord': '2000– IJburg, Zuidas, Noord',
+};
+let LANG = (() => {
+  const q = new URLSearchParams(location.search).get('lang');
+  if (q === 'nl' || q === 'en') return q;
+  try { const s = localStorage.getItem('lang'); if (s === 'nl' || s === 'en') return s; } catch {}
+  return navigator.language?.startsWith('nl') ? 'nl' : 'en';
+})();
+const t = s => (LANG === 'nl' && NL_UI[s]) || s;
+const tr = (o, k) => (LANG === 'nl' && o?.[k + '_nl']) || o?.[k];
+const fmtLocale = () => LANG === 'nl' ? 'nl-NL' : 'en';
 const periods = config.periods;
 
 // ---------- Scene ----------
@@ -353,10 +397,12 @@ const DATE_NOTE = [
   'The register has no real year (placeholder 1005, or one of the surplus 1905s of the old centre). Estimated from the nearest dated buildings.',
   'Year from the register of national monuments, which dates the building earlier than BAG does.',
   'Dated by the register of national monuments to a century or part of one; the map spreads it across that span.',
+  'Year from Wikidata, which dates the building earlier than BAG does; the register of national monuments gives no date.',
 ];
 const residentsLayer = layers.find(L => L.id === 'residents');
-const contextLayers = layers.filter(L => L !== residentsLayer);
-const groupsByBit = contextLayers.flatMap(L => L.groups.map(g => ({ ...g, layer: L })));
+const contextLayers = layers;
+// The card shows residents in their own section, so they are left out of its list of layers.
+const groupsByBit = layers.filter(L => L !== residentsLayer).flatMap(L => L.groups.map(g => ({ ...g, layer: L })));
 
 function building(gid) {
   const o = gid * config.attrStride;
@@ -402,7 +448,10 @@ function streetView(b) {
   const [lat, lon] = toLatLon(b.x, b.z);
   return `https://api.data.amsterdam.nl/panorama/thumbnail/?lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}&width=640&radius=80`;
 }
-const SV_CREDIT = `Street view: ${'<a href="https://data.amsterdam.nl" target="_blank" rel="noopener">Gemeente Amsterdam</a>'}, CC BY 4.0`;
+const svCredit = () => `${t('Street view')}: <a href="https://data.amsterdam.nl" target="_blank" rel="noopener">Gemeente Amsterdam</a>, CC BY 4.0`;
+
+// The article in the reader's language when there is one.
+const wikiOf = w => (LANG === 'nl' && w?.wiki_nl?.extract ? w.wiki_nl : w?.wiki) || w?.wiki_nl;
 
 function groupColor(g) {
   return GROUP_COLORS[g.layer.groups.findIndex(x => x.bit === g.bit)] || GROUP_COLORS[0];
@@ -412,11 +461,12 @@ function residentsHtml(b, pinned) {
   const n = residentsLayer?.notes?.[b.bag];
   if (!n) return '';
   const people = pinned ? n.people : n.people.slice(0, 3);
-  return `<section><h4>Lived or worked here</h4><ul class="residents">${people.map(p => `<li>
+  return `<section><h4>${t('Lived or worked here')}</h4><ul class="residents">${people.map(p => `<li>
     <b>${pinned ? link(p.url, p.person) : esc(p.person)}</b>${p.born ? ` <span>${esc(p.born)}${p.died ? '–' + esc(p.died) : ''}</span>` : ''}
     ${p.desc ? `<div class="desc">${esc(p.desc)}</div>` : ''}
-    ${pinned ? `<blockquote lang="nl">${esc(p.quote)}</blockquote>` : ''}</li>`).join('')}</ul>
-    ${!pinned && n.people.length > 3 ? `<p class="why">and ${n.people.length - 3} more</p>` : ''}</section>`;
+    ${pinned ? (p.quote.startsWith('Wikidata') ? `<p class="why">${esc(t(p.quote))}</p>` : `<blockquote lang="nl">${esc(p.quote)}</blockquote>`) : ''}
+    ${p.died && b.year > +p.died + 5 ? `<p class="why">${LANG === 'nl' ? `Dit gebouw dateert uit ${b.year}, na de dood van ${esc(p.person.split(' ').slice(-1)[0])}; het staat op de plek van het huis.` : `This building dates from ${b.year}, after ${esc(p.person.split(' ').slice(-1)[0])} died; it stands where their house stood.`}</p>` : ''}</li>`).join('')}</ul>
+    ${!pinned && n.people.length > 3 ? `<p class="why">${LANG === 'nl' ? 'en' : 'and'} ${n.people.length - 3} ${LANG === 'nl' ? 'meer' : 'more'}</p>` : ''}</section>`;
 }
 
 // The card reads top to bottom: photo, name and year; what the building is; the layers it belongs to and why;
@@ -427,44 +477,43 @@ function cardHtml(gid, pinned) {
   const im = w?.image?.thumb ? w.image : null;
   const period = periodOf(b.year);
   const facts = [
-    ['Height', `${b.height.toFixed(1)} m`],
-    ['Storeys', b.fsrc === 0 ? 'from the 3D BAG model' : 'height ÷ 3.2 m'],
-    w?.architects?.length && [w.architects.length > 1 ? 'Architects' : 'Architect', w.architects.map(esc).join(', ')],
-    w?.styles?.length && ['Style', w.styles.map(esc).join(', ')],
-    b.mon && ['National monument', `no. ${b.mon}`],
-    b.energy && ['Energy label', `<span class="elabel" style="background:${ENERGY_COLORS[b.energy]}">${config.energy.labels[b.energy - 1]}</span>`],
+    [t('Height'), `${b.height.toFixed(1)} m`],
+    [t('Storeys'), b.fsrc === 0 ? t('from the 3D BAG model') : t('height ÷ 3.2 m')],
+    w?.architects?.length && [t(w.architects.length > 1 ? 'Architects' : 'Architect'), w.architects.map(esc).join(', ')],
+    w?.styles?.length && [t('Style'), w.styles.map(esc).join(', ')],
+    b.mon && [t('National monument'), `${LANG === 'nl' ? 'nr.' : 'no.'} ${b.mon}`],
+    b.energy && [t('Energy label'), `<span class="elabel" style="background:${ENERGY_COLORS[b.energy]}">${config.energy.labels[b.energy - 1]}</span>`],
   ].filter(Boolean);
   const credit = im && (pinned
     ? `${link(im.page || im.thumb, im.artist || 'Wikimedia Commons')}${im.license ? `, ${im.licenseUrl ? link(im.licenseUrl, im.license) : esc(im.license)}` : ''}`
     : `${esc(im.artist || 'Wikimedia Commons')}${im.license ? `, ${esc(im.license)}` : ''}`);
   const sources = [
-    w?.wiki?.url && link(w.wiki.url, w.wiki.lang === 'nl' ? 'Dutch Wikipedia' : 'Wikipedia'),
-    b.mon && link(`https://monumentenregister.cultureelerfgoed.nl/monumenten/${b.mon}`, 'Monument register'),
-    link(`https://bagviewer.kadaster.nl/lvbag/bag-viewer/?objectId=${b.bag}`, 'BAG register'),
+    wikiOf(w)?.url && link(wikiOf(w).url, t(wikiOf(w).lang === 'nl' ? 'Dutch Wikipedia' : 'Wikipedia')),
+    b.mon && link(`https://monumentenregister.cultureelerfgoed.nl/monumenten/${b.mon}`, t('Monument register')),
+    link(`https://bagviewer.kadaster.nl/lvbag/bag-viewer/?objectId=${b.bag}`, t('BAG register')),
   ].filter(Boolean);
   const inLayers = b.groups.map(g => {
     const note = g.layer.notes?.[b.bag];
-    return `<li><i style="background:${groupColor(g)}"></i><div><b>${esc(g.layer.title)}</b> <span>${esc(g.label)}</span>
-      ${pinned && note ? `<p>${esc(note.story)}${note.source ? ` ${link(note.source, 'Source')}` : ''}</p>` : ''}</div></li>`;
+    return `<li><i style="background:${groupColor(g)}"></i><div><b>${esc(tr(g.layer, 'title'))}</b> <span>${esc(tr(g, 'label'))}</span>
+      ${pinned && note ? `<p>${esc(tr(note, 'story'))}${note.source ? ` ${link(note.source, t('Source'))}` : ''}</p>` : ''}</div></li>`;
   }).join('');
-  const dating = b.orig !== b.year ? `${DATE_NOTE[b.flag] || ''} BAG gives ${b.orig}.` : DATE_NOTE[b.flag];
+  const dating = b.orig !== b.year ? `${t(DATE_NOTE[b.flag] || '')} ${t('BAG gives')} ${b.orig}.` : (DATE_NOTE[b.flag] && t(DATE_NOTE[b.flag]));
   return `
     ${pinned ? '<button class="card-close" aria-label="Close">×</button>' : ''}
-    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>Photo: ${credit}</figcaption></figure>`
-      : `<figure class="photo sv"><img data-sv="${esc(streetView(b))}" alt="" onerror="this.parentElement.remove()"><figcaption>${pinned ? SV_CREDIT : 'Street view: Gemeente Amsterdam, CC BY 4.0'}</figcaption></figure>`}
+    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>${t('Photo')}: ${credit}</figcaption></figure>`
+      : `<figure class="photo sv"><img data-sv="${esc(streetView(b))}" alt="" onerror="this.parentElement.remove()"><figcaption>${pinned ? svCredit() : `${t('Street view')}: Gemeente Amsterdam, CC BY 4.0`}</figcaption></figure>`}
     <header class="card-head">
-      ${w?.label ? `<h3>${esc(w.label)}</h3>` : ''}
-      <div class="when"><span class="y">${b.flag && b.flag !== 3 ? 'c. ' : ''}${b.year}</span>
-        <span class="period"><i style="background:${period.color}"></i>${esc(period.label)}</span></div>
+      ${w?.label ? `<h3>${esc(tr(w, 'label'))}</h3>` : ''}
+      <div class="when"><span class="y">${[1, 2, 4].includes(b.flag) ? 'c. ' : ''}${b.year}</span>
+        <span class="period"><i style="background:${period.color}"></i>${esc(t(period.label))}</span></div>
     </header>
-    ${pinned && w?.wiki?.extract ? `<section><p class="extract">${esc(w.wiki.extract)}</p></section>` : ''}
+    ${pinned && wikiOf(w)?.extract ? `<section><p class="extract">${esc(wikiOf(w).extract)}</p></section>` : ''}
     ${residentsHtml(b, pinned)}
-    ${pinned && im ? `<section><h4>From the street</h4><figure class="photo sv inline"><img data-sv="${esc(streetView(b))}" alt="" onerror="this.parentElement.parentElement.remove()"><figcaption>${SV_CREDIT}</figcaption></figure></section>` : ''}
-    ${inLayers ? `<section><h4>In layers</h4><ul class="chips">${inLayers}</ul></section>` : ''}
+    ${inLayers ? `<section><h4>${t('In layers')}</h4><ul class="chips">${inLayers}</ul></section>` : ''}
     <section><dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></section>
-    ${dating ? `<section><h4>Dating</h4><p class="why">${dating}</p></section>` : ''}
-    ${pinned ? `<section class="sources"><h4>Read more</h4><p>${sources.join(', ')}</p></section>`
-      : `<p class="hint">${w?.wiki || b.groups.some(g => g.layer.notes?.[b.bag]) ? 'Click for the story and sources' : 'Click to keep this card open'}</p>`}`;
+    ${dating ? `<section><h4>${t('Dating')}</h4><p class="why">${dating}</p></section>` : ''}
+    ${pinned ? `<section class="sources"><h4>${t('Read more')}</h4><p>${sources.join(', ')}</p></section>`
+      : `<p class="hint">${w?.wiki || b.groups.some(g => g.layer.notes?.[b.bag]) ? t('Click for the story and sources') : t('Click to keep this card open')}</p>`}`;
 }
 
 const card = document.getElementById('card');
@@ -566,27 +615,37 @@ const phone = matchMedia('(max-width: 720px)');
 function setCollapsed(c) {
   panelEl.classList.toggle('collapsed', c);
   sheetHandle.setAttribute('aria-expanded', String(!c));
-  sheetHandle.textContent = c ? 'Show legend' : 'Hide legend';
+  sheetHandle.textContent = t(c ? 'Show legend' : 'Hide legend');
 }
 sheetHandle.onclick = () => setCollapsed(!panelEl.classList.contains('collapsed'));
 function collapsePanelOnPhone() { if (phone.matches) setCollapsed(true); }
 setCollapsed(phone.matches);
 const totals = periods.map(() => 0);
 for (const v of Object.values(config.histogram)) v.forEach((n, i) => totals[i] += n);
-const fmt = n => n.toLocaleString('en');
+const fmt = n => n.toLocaleString(fmtLocale());
 let activeLayer = null;
-const SECTION_ORDER = ['Architecture', 'Trade and empire', 'Faith and community', 'Countries and communities',
+const SECTION_ORDER = ['Discover', 'Architecture', 'Trade and empire', 'Faith and community', 'Countries and communities',
   'The modern city', 'War and occupation'];
 const groupOn = {};
+
+const ICON = {
+  'Discover': '<circle cx="8" cy="8" r="6.2"/><path d="M10.6 5.4 9 9 5.4 10.6 7 7z"/>',
+  'Architecture': '<path d="M3 14.5V7l5-4.5L13 7v7.5z"/><path d="M6.5 14.5v-4h3v4"/>',
+  'Trade and empire': '<path d="M2 11h12l-1.8 3H3.8z"/><path d="M8 2v9M8 3l4.5 6H8"/>',
+  'Faith and community': '<path d="M8 1.5v4M6.2 3.3h3.6"/><path d="M4 14.5V8.5L8 5.5l4 3v6z"/><path d="M7 14.5v-3h2v3"/>',
+  'The modern city': '<rect x="2.5" y="5" width="5" height="9.5"/><rect x="8.5" y="2" width="5" height="12.5"/><path d="M4.5 7.5h1M4.5 10h1M10.5 4.5h1M10.5 7h1M10.5 9.5h1"/>',
+  'War and occupation': '<path d="M8 1.8 13 4v4c0 3.2-2.2 5.3-5 6.3-2.8-1-5-3.1-5-6.3V4z"/>',
+};
+const sectionIcon = sec => `<svg class="icon" viewBox="0 0 16 16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round" stroke-linecap="round">${ICON[sec] || ''}</svg>`;
 
 function renderPanel() {
   const mode = uniforms.uMode.value;
   if (mode === MODE.period) {
-    panel.innerHTML = `<h2>Built in</h2><div class="swatches">${periods.map((p, i) => `
+    panel.innerHTML = `<h2>${t('Built in')}</h2><div class="swatches">${periods.map((p, i) => `
       <button class="swatch" data-i="${i}" aria-pressed="${!!uniforms.uMask.value[i]}">
-        <i style="background:${p.color}"></i><span>${p.label}</span><span class="n">${fmt(totals[i])}</span>
+        <i style="background:${p.color}"></i><span>${t(p.label)}</span><span class="n">${fmt(totals[i])}</span>
       </button>`).join('')}</div>
-      <p class="note">Click a period to see it alone. Paler buildings have an approximate year.</p>`;
+      <p class="note">${t('Click a period to see it alone. Paler buildings have an approximate year.')}</p>`;
     panel.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
       const i = +b.dataset.i, m = uniforms.uMask.value;
       const solo = m.every((v, j) => (j === i) === !!v);
@@ -594,28 +653,29 @@ function renderPanel() {
       renderPanel(); drawHist();
     });
   } else if (mode === MODE.floors) {
-    panel.innerHTML = `<h2>Storeys</h2>
+    panel.innerHTML = `<h2>${t('Storeys')}</h2>
       <div class="ramp" style="background:linear-gradient(90deg,#dbe3e6,#7da8bf,#2b5c8c,#0d1a40)"></div>
       <div class="ramp-scale"><span>1</span><span>3</span><span>8</span><span>20</span><span>40+</span></div>
-      <p class="note">${fmt(config.stats.floorsBag3d)} buildings take their storeys from the 3D BAG model; the rest, ${fmt(config.stats.floorsHeight)}, from their height divided by 3.2 m.</p>`;
+      <p class="note">${LANG === 'nl' ? `${fmt(config.stats.floorsBag3d)} gebouwen krijgen hun verdiepingen uit het 3D BAG-model; de rest, ${fmt(config.stats.floorsHeight)}, uit hun hoogte gedeeld door 3,2 m.` : `${fmt(config.stats.floorsBag3d)} buildings take their storeys from the 3D BAG model; the rest, ${fmt(config.stats.floorsHeight)}, from their height divided by 3.2 m.`}</p>`;
   } else if (mode === MODE.energy) {
     const e = config.energy;
-    panel.innerHTML = `<h2>Energy label</h2><div class="energy-scale">${e.labels.map((l, i) => `
+    panel.innerHTML = `<h2>${t('Energy label')}</h2><div class="energy-scale">${e.labels.map((l, i) => `
       <div><i style="background:${ENERGY_COLORS[i + 1]}"></i><span>${l}</span><span class="n">${fmt(e.counts[i + 1])}</span></div>`).reverse().join('')}</div>
-      <p class="note">The label most homes in a building carry. ${fmt(e.counts[0])} buildings, white on the map, have no registered label.</p>
-      <a class="src" href="https://www.atlasleefomgeving.nl/energielabels-van-gebouwen" target="_blank" rel="noopener">RVO energy labels, via Atlas Leefomgeving</a>`;
-  } else if (mode === MODE.residents) {
+      <p class="note">${LANG === 'nl' ? `Het label dat de meeste woningen in een gebouw hebben. ${fmt(e.counts[0])} gebouwen, wit op de kaart, hebben geen geregistreerd label.` : `The label most homes in a building carry. ${fmt(e.counts[0])} buildings, white on the map, have no registered label.`}</p>
+      <a class="src" href="https://www.atlasleefomgeving.nl/energielabels-van-gebouwen" target="_blank" rel="noopener">${t('RVO energy labels, via Atlas Leefomgeving')}</a>`;
+  } else if (activeLayer && activeLayer === residentsLayer) {
     const notes = Object.entries(residentsLayer?.notes || {});
     const people = notes.flatMap(([bag, n]) => n.people.map(p => ({ ...p, bag, at: n.at })))
       .sort((a, b) => b.links - a.links);
-    panel.innerHTML = `<h2 class="layer-title">Who lived here</h2>
-      <p class="layer-intro">${esc(residentsLayer?.text || '')}</p>
-      <input class="filter" type="search" placeholder="Find a person" aria-label="Find a person">
+    panel.innerHTML = `<button class="back">${t('All context layers')}</button><h2 class="layer-title">${esc(tr(residentsLayer, 'title'))}</h2>
+      <p class="layer-intro">${esc(tr(residentsLayer, 'text') || '')}</p>
+      <input class="filter" type="search" placeholder="${t('Find a person')}" aria-label="${t('Find a person')}">
       <ul class="stories people">${people.map(p => `<li data-q="${esc((p.person + ' ' + (p.desc || '')).toLowerCase())}">
         <button class="story" data-bag="${p.bag}"><b>${esc(p.person)}</b>
         <span>${[p.born && p.died ? `${p.born}–${p.died}` : p.born, p.desc].filter(Boolean).map(esc).join(', ')}</span>
         <span class="addr">${esc(p.address)}</span></button></li>`).join('')}</ul>
-      ${residentsLayer?.caveat ? `<p class="caveat">${esc(residentsLayer.caveat)}</p>` : ''}`;
+      ${residentsLayer?.caveat ? `<p class="caveat">${esc(tr(residentsLayer, 'caveat'))}</p>` : ''}`;
+    panel.querySelector('.back').onclick = () => setLayer(null);
     panel.querySelector('.filter').oninput = e => {
       const q = e.target.value.toLowerCase();
       panel.querySelectorAll('.people li').forEach(li => { li.hidden = q && !li.dataset.q.includes(q); });
@@ -627,14 +687,19 @@ function renderPanel() {
     });
   } else if (!activeLayer) {
     const sections = [...new Set(contextLayers.map(L => L.section))].sort((a, b) => SECTION_ORDER.indexOf(a) - SECTION_ORDER.indexOf(b));
-    panel.innerHTML = sections.map(sec => `<h2 class="section">${esc(sec)}</h2><div class="layers">${contextLayers.filter(L => L.section === sec).map(L => `
+    const secTitle = sec => tr(contextLayers.find(L => L.section === sec), 'section');
+    panel.innerHTML = `<nav class="jump" aria-label="${t('Context layers')}">${sections.map(sec => `
+      <button data-sec="${esc(sec)}" title="${esc(secTitle(sec))}" aria-label="${esc(secTitle(sec))}">${sectionIcon(sec)}</button>`).join('')}</nav>` +
+      sections.map(sec => `<h2 class="section" id="sec-${sec.replace(/\W+/g, '-')}">${sectionIcon(sec)}${esc(secTitle(sec))}</h2><div class="layers">${contextLayers.filter(L => L.section === sec).map(L => `
       <button class="layer" data-id="${L.id}">
-        <b>${esc(L.title)}</b><span class="n">${fmt(L.count)}</span><span class="era">${esc(L.era)}</span>
+        <b>${esc(tr(L, 'title'))}</b><span class="n">${fmt(L.count)}</span><span class="era">${esc(tr(L, 'era'))}</span>
       </button>`).join('')}</div>`).join('');
+    panel.querySelectorAll('.jump button').forEach(b => b.onclick = () =>
+      panel.querySelector(`#sec-${b.dataset.sec.replace(/\W+/g, '-')}`).scrollIntoView({ behavior: 'smooth', block: 'start' }));
     panel.querySelectorAll('.layer').forEach(b => b.onclick = () => setLayer(contextLayers.find(l => l.id === b.dataset.id)));
   } else {
-    panel.innerHTML = `<button class="back">All layers</button>
-      <h2 class="layer-title">${activeLayer.title}</h2><p class="layer-era">${activeLayer.era}</p>${layerDetail(activeLayer)}`;
+    panel.innerHTML = `<button class="back">${t('All context layers')}</button>
+      <h2 class="layer-title">${sectionIcon(activeLayer.section)}${esc(tr(activeLayer, 'title'))}</h2><p class="layer-era">${esc(tr(activeLayer, 'era'))}</p>${layerDetail(activeLayer)}`;
     panel.querySelector('.back').onclick = () => setLayer(null);
     panel.querySelectorAll('.story').forEach(b => b.onclick = () => {
       const n = activeLayer.notes[b.dataset.bag];
@@ -654,14 +719,16 @@ function renderPanel() {
 function layerDetail(L) {
   const groups = L.groups.length > 1 ? `<div class="swatches">${L.groups.map((g, i) => `
     <button class="swatch" data-bit="${g.bit}" aria-pressed="${groupOn[g.bit] !== false}">
-      <i style="background:${GROUP_COLORS[i]}"></i><span>${g.label}</span><span class="n">${fmt(g.count)}</span>
+      <i style="background:${GROUP_COLORS[i]}"></i><span>${esc(tr(g, 'label'))}</span><span class="n">${fmt(g.count)}</span>
     </button>`).join('')}</div>` : '';
-  const named = Object.entries(L.notes || {}).filter(([, n]) => n.name && n.at);
-  const stories = named.length ? `<h2 class="section">Buildings and their stories</h2><ul class="stories">${named.map(([bag, n]) => `
-    <li><button class="story" data-bag="${bag}"><b>${esc(n.name)}</b><span>${esc(n.story)}</span></button></li>`).join('')}</ul>` : '';
-  return `<div class="layer-detail"><p>${L.text}</p>${groups}${stories}
-    ${L.caveat ? `<p class="caveat">${L.caveat}</p>` : ''}
-    <a href="${L.source.url}" target="_blank" rel="noopener">${L.source.label}</a></div>`;
+  // One line per story: a building made of several BAG parts carries the same note on each.
+  const seenName = new Set();
+  const named = Object.entries(L.notes || {}).filter(([, n]) => n.name && n.at && !seenName.has(n.name) && seenName.add(n.name));
+  const stories = named.length ? `<h2 class="section">${t('Buildings and their stories')}</h2><ul class="stories">${named.map(([bag, n]) => `
+    <li><button class="story" data-bag="${bag}"><b>${esc(tr(n, 'name'))}</b><span>${esc(tr(n, 'story'))}</span></button></li>`).join('')}</ul>` : '';
+  return `<div class="layer-detail"><p>${esc(tr(L, 'text'))}</p>${groups}${stories}
+    ${L.caveat ? `<p class="caveat">${esc(tr(L, 'caveat'))}</p>` : ''}
+    <a href="${L.source.url}" target="_blank" rel="noopener">${esc(tr(L.source, 'label'))}</a></div>`;
 }
 
 function setLayer(L) {
@@ -676,8 +743,7 @@ document.querySelectorAll('.modes button').forEach(b => b.onclick = () => {
   uniforms.uMode.value = +b.dataset.mode;
   document.querySelectorAll('.modes button').forEach(x => x.setAttribute('aria-pressed', x === b));
   const bits = Array(MAX_GROUPS).fill(-1);
-  if (uniforms.uMode.value === MODE.residents && residentsLayer) bits[0] = residentsLayer.groups[0].bit;
-  else if (activeLayer) activeLayer.groups.forEach((g, i) => { if (groupOn[g.bit] !== false) bits[i] = g.bit; });
+  if (activeLayer) activeLayer.groups.forEach((g, i) => { if (groupOn[g.bit] !== false) bits[i] = g.bit; });
   uniforms.uGroupBit.value = bits;
   if (!phone.matches) setCollapsed(false);
   renderPanel(); drawHist();
@@ -693,7 +759,6 @@ const xOf = y => (y - T0) / (T1 - T0) * hist.clientWidth;
 const yearOf = x => Math.round(T0 + x / hist.clientWidth * (T1 - T0));
 
 function layerGroupsShown() {
-  if (uniforms.uMode.value === MODE.residents && residentsLayer) return [{ ...residentsLayer.groups[0], color: GROUP_COLORS[0] }];
   if (uniforms.uMode.value !== MODE.layers || !activeLayer) return [];
   return activeLayer.groups.map((g, i) => ({ ...g, color: GROUP_COLORS[i] })).filter(g => groupOn[g.bit] !== false);
 }
@@ -792,7 +857,7 @@ function startPlay() {
   playT0 = 0;
   while (playT0 < 1 && playYear(playT0) < uniforms.uYear.value) playT0 += 0.001;
   playIcon.setAttribute('d', 'M4 2.5h3v11H4zM9 2.5h3v11H9z');
-  playBtn.setAttribute('aria-label', 'Pause');
+  playBtn.setAttribute('aria-label', t('Pause'));
 }
 function stopPlay() {
   playing = false;
@@ -810,6 +875,34 @@ function resize() {
   drawHist();
 }
 addEventListener('resize', resize);
+function applyStaticText() {
+  document.documentElement.lang = LANG;
+  document.querySelector('.dek').textContent = t('Every building standing today, by age and historical context.');
+  document.querySelector('.about-open').textContent = t('About');
+  document.querySelectorAll('[data-lang-block]').forEach(a => { a.hidden = a.dataset.langBlock !== LANG; });
+  document.querySelectorAll('.modes button').forEach(b => { b.textContent = t(b.dataset.label); });
+  document.querySelector('.tally-count').childNodes[1].textContent = ' ' + t('buildings');
+  document.querySelector('.howto').textContent = t('Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.');
+  const ld = document.getElementById('loading'); if (ld.firstChild) ld.firstChild.textContent = t('Building the city') + ' ';
+  playBtn.setAttribute('aria-label', t(playing ? 'Pause' : "Play the city's growth"));
+  document.querySelectorAll('.lang [data-lang]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === LANG));
+  sheetHandle.textContent = t(panelEl.classList.contains('collapsed') ? 'Show legend' : 'Hide legend');
+}
+document.querySelectorAll('.modes button').forEach(b => { b.dataset.label = b.textContent.trim(); });
+const about = document.getElementById('about');
+document.querySelector('.about-open').onclick = () => about.showModal();
+about.querySelector('.about-close').onclick = () => about.close();
+about.addEventListener('click', e => { if (e.target === about) about.close(); });
+
+function setLang(l) {
+  LANG = l;
+  try { localStorage.setItem('lang', l); } catch {}
+  const u = new URL(location.href); u.searchParams.set('lang', l); history.replaceState(null, '', u);
+  applyStaticText(); renderPanel(); drawHist();
+  if (pinnedGid >= 0) pinCard(pinnedGid, ...lastPin);
+}
+document.querySelectorAll('.lang [data-lang]').forEach(b => b.onclick = () => setLang(b.dataset.lang));
+applyStaticText();
 renderPanel();
 resize();
 document.fonts?.ready.then(drawHist);

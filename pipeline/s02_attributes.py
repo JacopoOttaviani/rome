@@ -10,6 +10,7 @@ Date sources, in order of trust:
              when BAG is earlier, BAG stays: the RCE date often describes a later facade;
              RCE year when it gives one, otherwise spread across its century or part of one
 """
+import csv
 import hashlib
 import geopandas as gpd
 import numpy as np
@@ -20,7 +21,7 @@ from .monuments import load as load_monuments
 from .periods import period_index
 
 PLACEHOLDER = 1005
-FLAG_EXACT, FLAG_FAINT, FLAG_ESTIMATED, FLAG_MONUMENT, FLAG_MONUMENT_APPROX = 0, 1, 2, 3, 4
+FLAG_EXACT, FLAG_FAINT, FLAG_ESTIMATED, FLAG_MONUMENT, FLAG_MONUMENT_APPROX, FLAG_WIKIDATA = 0, 1, 2, 3, 4, 5
 LATER_MARGIN = 10
 SUSPECT_YEARS = (1905,)
 DAM = (121390.0, 487380.0)
@@ -57,6 +58,21 @@ def apply_monuments(p: pd.DataFrame) -> pd.DataFrame:
         p.iat[i, p.columns.get_loc("year")] = lo if lo == hi else int(round(lo + u[i] * (hi - lo)))
         p.iat[i, p.columns.get_loc("date_flag")] = FLAG_MONUMENT if lo == hi else FLAG_MONUMENT_APPROX
     print(f"monuments: {agree} kept BAG, {disagree} redated")
+    # Where RCE gives no date, a Wikidata inception more than ten years before BAG's year wins
+    # (Hollandsche Schouwburg: BAG 1988, the rebuilding; built 1892). The earliest inception counts.
+    inception = {}
+    for r in csv.DictReader(open("data/raw/wd_monuments.csv")):
+        if r["bag"] and r["inception"][:4].isdigit():
+            k = r["bag"].zfill(16)
+            inception[k] = min(inception.get(k, 9999), int(r["inception"][:4]))
+    n = 0
+    for i in np.where(~bag.isin(links) & bag.isin(inception))[0]:
+        inc = inception[bag.iat[i]]
+        if inc < p.year.iat[i] - LATER_MARGIN:
+            p.iat[i, p.columns.get_loc("year")] = inc
+            p.iat[i, p.columns.get_loc("date_flag")] = FLAG_WIKIDATA
+            n += 1
+    print(f"wikidata inception: {n} redated")
     return p
 
 

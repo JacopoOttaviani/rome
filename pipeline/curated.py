@@ -72,11 +72,12 @@ CURATED = [
              "The Frank family fled Frankfurt for Amsterdam in 1933 and lived in this flat until they went into "
              "hiding in 1942.", "en:Anne Frank", ("Merwedeplein", "1933", "Frankfurt")),
             ("Zentralstelle für jüdische Auswanderung", "Adama van Scheltemaplein 1",
-             "The German office that organised the deportation of the Jews of the Netherlands, from 1941.",
+             "The German office that organised the deportation of the Jews of the Netherlands had its first offices here.",
              "nl:Zentralstelle für jüdische Auswanderung in Amsterdam", ("Adama van Scheltemaplein",)),
             ("SD headquarters, Euterpestraat", "Gerrit van der Veenstraat 99",
-             "A school taken over as headquarters of the German security police and SD; the street was renamed after "
-             "the resistance fighter Gerrit van der Veen.", "nl:Adama van Scheltemaplein", ("Euterpestraat",)),
+             "A girls' school that housed the headquarters of the German Sicherheitsdienst (SD) during the occupation; "
+             "the street, then Euterpestraat, was renamed after the resistance fighter Gerrit van der Veen.",
+             "nl:Gerrit van der Veenstraat", ("Sicherheitsdienst", "nr. 99", "Euterpestraat")),
         ]),
     dict(
         id="sephardic", title="Portugal and Spain", era="1600–today",
@@ -121,16 +122,16 @@ CURATED = [
              "Home of Wigbold Slicher, director of the Society of Suriname from 1708 to 1729.",
              "nl:Gouden Bocht", ("Herengracht 537", "Slicher", "Suriname")),
             ("Huis De Vicq", "Herengracht 476",
-             "Named after François de Vicq, mayor, director of the West India Company and of the Society of Suriname.",
-             "nl:Gouden Bocht", ("Herengracht 476", "Vicq")),
+             "Built in 1670 for François de Vicq, regent, director of the West India Company and of the Society of "
+             "Suriname.", "nl:Huis De Vicq", ("476", "1670", "François de Vicq")),
         ]),
 ]
 
 CURATED.append(dict(
     id="jewish", title="Jewish Amsterdam", era="1600–1945",
-    intro=("Before 1940 one Amsterdammer in ten was Jewish. Sephardic and Ashkenazi communities built synagogues, "
-           "schools and a world centre of the diamond trade; under German occupation the city's Jews were "
-           "registered, gathered and deported, and about 60,000 of them were murdered."),
+    intro=("In 1940 some 75,000 to 80,000 Jews lived in Amsterdam, a little under a tenth of the city. Sephardic and "
+           "Ashkenazi communities had built synagogues, schools and a world centre of the diamond trade; under German "
+           "occupation about three in four of them were deported and murdered."),
     caveat=("The homes of the victims are not shown: the dataset linking the Joods Monument to buildings has no "
             "open licence. joodsmonument.nl lists every person and address."),
     groups=[("community", "Community and worship"), ("work", "Work and the diamond trade"),
@@ -164,7 +165,7 @@ CURATED.append(dict(
          "A theatre the occupier turned into the assembly point for Jews awaiting deportation, 1942–1943.",
          "en:Hollandsche Schouwburg", ("1942", "deport"), "persecution"),
         ("Zentralstelle für jüdische Auswanderung", "Adama van Scheltemaplein 1",
-         "The German office that organised the deportation of the Jews of the Netherlands, from 1941.",
+         "The German office that organised the deportation of the Jews of the Netherlands had its first offices here.",
          "nl:Zentralstelle für jüdische Auswanderung in Amsterdam", ("Adama van Scheltemaplein",), "persecution"),
         ("Joodsche Invalide", "Weesperplein 1",
          "A Jewish home for the elderly and disabled; its residents were deported in a single night in 1943.",
@@ -184,4 +185,47 @@ CURATED.append(dict(
         ("Rembrandt House", "Jodenbreestraat 4",
          "Rembrandt lived here from 1639 to 1658, among the Sephardic neighbours who appear in his work.",
          "en:Rembrandt House Museum", ("1639", "1658"), "lives"),
+    ]))
+
+CURATED.append(dict(
+    id="secrets", title="Secrets of the city", era="1420–today",
+    intro=("Hidden churches in attics, houses no wider than a door, wooden façades that survived the fire bans, "
+           "courtyards behind unmarked gates: places that are easy to walk past."),
+    entries=[
+        ("Our Lord in the Attic", "Oudezijds Voorburgwal 38",
+         "In 1661 a stocking merchant bought this canal house and fitted out a Catholic church in its attics, at a "
+         "time when Catholics could not worship in public.", "nl:Ons' Lieve Heer op Solder", ("1661",), "secrets"),
+        ("Het Houten Huis", "Begijnhof 34",
+         "One of the city's last wooden houses, from around 1528, with wooden front and back walls; entirely wooden houses no longer exist in the old centre.", 'nl:Begijnhof (Amsterdam)', ('Begijnhof 34', '1528', 'Geheel houten huizen'), "secrets"),
+        ("In 't Aepjen", "Zeedijk 1",
+         "Built around 1550, one of the oldest wooden houses still standing; the saying 'in de aap gelogeerd zijn', to be in a fix, is said to come from here.", "nl:In 't Aepjen", ('1550', 'houten', 'in de aap gelogeerd'), "secrets"),
+        ("The smallest house", "Oude Hoogstraat 22",
+         '2.02 metres wide and 5 metres deep: often called the smallest house in Amsterdam.', 'nl:Kleinste huis van Amsterdam', ('2,02 meter',), "secrets"),
+        ("The narrowest front", "Singel 7",
+         "The narrowest house front in Amsterdam; the house widens behind it.",
+         "nl:Singel 166 (Amsterdam)", ("nummer 7 heeft de smalste voorgevel",), "secrets"),
+        ("The Little Trip House", "Kloveniersburgwal 26",
+         "A narrow house across the canal from the Trips' palace, built in the same style as its grand neighbour.",
+         "nl:Trippenhuis",
+         ("Kloveniersburgwal 26", "Klein Trippenhuis"), "secrets"),
+        ("The Begijnhof", "Begijnhof 29",
+         'The only hofje founded in medieval Amsterdam: a courtyard of houses behind a gate off the Spui, lying almost a metre below the street.', 'nl:Begijnhof (Amsterdam)', ('enige hofje', 'bijna een meter lager'), "secrets"),
+        ("De Papegaai", "Kalverstraat 58",
+         'A clandestine Catholic church of the Republic, still entered from the Kalverstraat shopping street.', 'nl:De Papegaai (Amsterdam)', ('schuilkerk', 'Kalverstraat'), "secrets"),
+        ("Schreierstoren", "Prins Hendrikkade 94",
+         "A defensive tower built around 1487. Legend says sailors' wives wept farewell here, which gave it its name, but the story is probably untrue.", 'nl:Schreierstoren', ('1487', 'vrouwen afscheid', 'waarschijnlijk apocrief'), "secrets"),
+        ("De Gooyer", "Funenkade 5",
+         'A windmill in the middle of the city: two wooden octagons stacked on a brick base.', 'nl:De Gooyer (Amsterdam)', ('twee op elkaar geplaatste houten achtkanten',), "secrets"),
+        ("Montelbaanstoren", "Oudeschans 2",
+         'A defensive tower of 1516; Hendrick de Keyser added its spire in 1606, and Rembrandt, who lived nearby, drew it in 1644.', 'nl:Montelbaanstoren', ('1516', '1606', '1644', 'Hendrick de Keyser'), "secrets"),
+        ("Huis met de Hoofden", "Keizersgracht 123",
+         'Named after six heads on its front. Legend says they are robbers beheaded one by one by the kitchen maid; they are in fact busts of six classical gods.', 'nl:Huis met de Hoofden', ('zes rovers', 'keukenmeid', 'zes goden'), "secrets"),
+        ("Bartolotti House", "Herengracht 170",
+         'Its front has two kinks so that it follows the bend of the Herengracht.', 'nl:Huis Bartolotti', ('twee knikken', 'bocht'), "secrets"),
+        ("De Waag", "Nieuwmarkt 4",
+         "A city gate of 1488 that became a weighhouse; Rembrandt's 'Anatomy Lesson of Dr Tulp' was painted for "
+         "the surgeons who met upstairs.", "nl:Waag (Amsterdam)", ("1488", "Tulp"), "secrets"),
+        ("Café Karpershoek", "Martelaarsgracht 2",
+         "Its building dates from 1629, and the café is said to be the oldest bar in Amsterdam.",
+         "nl:Martelaarsgracht", ("1629", "oudste kroeg"), "secrets"),
     ]))

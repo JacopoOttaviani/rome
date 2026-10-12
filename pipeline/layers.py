@@ -261,7 +261,7 @@ def architects():
         k = group_of(m["architect"])
         if k:
             for p in m["panden"]:
-                out[p] = (k, {"story": f"Designed by {m['architect']}."})
+                out[p] = (k, {"story": f"Designed by {m['architect']}.", "story_nl": f"Ontworpen door {m['architect']}."})
     o = orde()
     o["k"] = o.architect.map(group_of)
     o = o[o.k.notna()]
@@ -270,7 +270,7 @@ def architects():
     j = gpd.sjoin(pts, o, predicate="within")
     for bag, k, a, y in zip(j.bag, j.k, j.architect, j.bouwjaar):
         year = f" ({y})" if str(y).isdigit() and int(y) > 1000 else ""
-        out.setdefault(bag, (k, {"story": f"Designed by {a}{year}."}))
+        out.setdefault(bag, (k, {"story": f"Designed by {a}{year}.", "story_nl": f"Ontworpen door {a}{year}."}))
     return out
 
 
@@ -330,7 +330,7 @@ def war():
 @layer(
     id="noord1943", section="War and occupation", title="The raid on Noord, 17 July 1943", era="1943",
     text=("Allied bombers aimed at the Fokker aircraft works in Noord and missed: their bombs fell on the "
-          "streets around it and killed 185 people. Buildings near the impacts that date from after the war "
+          "streets around it and killed 158 people. Buildings near the impacts that date from after the war "
           "mark what had to be rebuilt."),
     caveat="Buildings within 40 m of a recorded impact of that day.",
     source=("Gemeente Amsterdam, wartime impacts", "https://api.data.amsterdam.nl/v1/ontplofbare_oorlogsresten/"),
@@ -369,7 +369,9 @@ def wallart():
         bag = near.iloc[(near.distance(r.geometry)).argmin()].bag if len(near) > 1 else near.bag.iloc[0]
         tech = TECHNIQUE.get(r.Techniek, (r.Techniek or "work").lower())
         year = f", {r.Jaartal}" if r.Jaartal else ""
-        out[bag] = (r.k, {"story": f"“{r.Titel_kunstwerk}”, a {tech} by {r.Kunstenaar}{year}."})
+        tech_nl = (r.Techniek or "kunstwerk").lower()
+        out[bag] = (r.k, {"story": f"“{r.Titel_kunstwerk}”, a {tech} by {r.Kunstenaar}{year}.",
+                          "story_nl": f"“{r.Titel_kunstwerk}”, {tech_nl} van {r.Kunstenaar}{year}."})
     return out
 
 
@@ -392,14 +394,17 @@ def arcam():
         verdict = {"Vakprijs": "won the jury prize", "Publieksprijs": "won the public prize",
                    "Publieksprijs - Vakprijs": "won both the jury and the public prize"}.get(r.Win_genomineerd, "was nominated")
         story = f"{r.Project} by {r.Architect} {verdict} in {r.Jaar}."
+        verdict_nl = {"Vakprijs": "won de vakprijs", "Publieksprijs": "won de publieksprijs",
+                      "Publieksprijs - Vakprijs": "won de vak- en de publieksprijs"}.get(r.Win_genomineerd, "werd genomineerd")
+        story_nl = f"{r.Project} van {r.Architect} {verdict_nl} in {r.Jaar}."
         for bag in near.bag:
-            out[bag] = ("won" if won else "nominated", {"story": story})
+            out[bag] = ("won" if won else "nominated", {"story": story, "story_nl": story_nl})
     return out
 
 
 @layer(
     id="heritage", section="Architecture", title="Protected heritage", era="All periods",
-    text=("About one building in twenty is a listed monument: by the State for national significance, "
+    text=("About one building in twelve is a listed monument: by the State for national significance, "
           "or by the city for local value."),
     source=("Gemeente Amsterdam, monuments register", "https://api.data.amsterdam.nl/v1/monumenten/monumenten/"),
     groups=[("Rijksmonument", "National monument"), ("Gemeentelijk monument", "Municipal monument")],
@@ -419,24 +424,35 @@ def _curated_layer(L):
     def fn():
         out = {}
         for e in L["entries"]:
-            out[e["bag"]] = (e["group"], {"story": e["story"], "source": e["source"], "name": e["name"]})
+            out.setdefault(e["bag"], []).append((e["group"], {"story": e["story"], "source": e["source"], "name": e["name"]}))
         if L["id"] == "jewish":
             # Synagogues in the monuments register that the curated list does not name.
             for nr, ps in monument_panden().items():
                 m = next((m for m in monuments() if str(m["nr"]) == nr), None)
                 if m and "synago" in (m["name"] or "").lower():
                     for p in ps:
-                        out.setdefault(p, ("community", {"story": f"{m['name']}."}))
+                        out.setdefault(p, [("community", {"story": f"{m['name']}."})])
         return out
 
-    section = "Faith and community" if L["id"] == "jewish" else "Countries and communities"
+    section = {"jewish": "Faith and community", "secrets": "Discover"}.get(L["id"], "Trade and empire")
     LAYERS.append(dict(id=L["id"], section=section, title=L["title"], era=L["era"], text=L["intro"],
                        caveat=L.get("caveat"), source=("Wikipedia, per building", "https://www.wikipedia.org"),
                        groups=[tuple(g) for g in groups], source_fn=fn))
 
 
-for _L in json.load(open("data/curated.json")):
-    _curated_layer(_L)
+# The country layers are too small alone; they become groups of one layer, each with its own colour.
+WORLD = ["russia", "britain", "france", "germany", "sephardic", "asia", "atlantic"]
+_curated = json.load(open("data/curated.json"))
+_world = [L for L in _curated if L["id"] in WORLD]
+_curated_layer(dict(
+    id="world", title="The world in Amsterdam", era="1586–today",
+    intro=("Refugees, merchants, occupiers and colonies tied Amsterdam to the world. Each colour is a country or "
+           "a community; every building carries its own story and source."),
+    groups=[(L["id"], L["title"]) for L in _world],
+    entries=[dict(e, group=L["id"]) for L in _world for e in L["entries"]]))
+for _L in _curated:
+    if _L["id"] not in WORLD:
+        _curated_layer(_L)
 
 
 # Residents: its own mode in the viewer, not one of the context layers.
@@ -449,7 +465,7 @@ def _residents():
 
 
 LAYERS.append(dict(
-    id="residents", section="Residents", title="Who lived here", era="1600–today",
+    id="residents", section="Discover", title="Who lived here", era="1600–today",
     text=("Painters, writers, scientists and sailors whose Wikipedia biography names the Amsterdam address where "
           "they lived or worked. Pick a name to fly to the house."),
     caveat=("Found automatically in Dutch Wikipedia and matched to today's address; house numbers have sometimes "

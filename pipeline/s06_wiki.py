@@ -55,6 +55,13 @@ def strip_html(s):
     return html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", "", s or ""))).strip()
 
 
+def artist_of(meta):
+    a = strip_html(meta.get("Artist", {}).get("value"))[:80]
+    if not a or re.match(r"^\d{1,2}:\d{2}|^\d{1,2} \w+ \d{4}|^\d{4}-\d{2}-\d{2}|^unknown", a, re.I):
+        return None
+    return a
+
+
 def images(files):
     out = {}
     for chunk in batched(sorted(files), 50):
@@ -69,7 +76,7 @@ def images(files):
             m = ii.get("extmetadata", {})
             key = norm.get(p["title"], p["title"])[5:]
             out[key] = dict(thumb=ii.get("thumburl"), page=ii.get("descriptionurl"),
-                            artist=strip_html(m.get("Artist", {}).get("value"))[:80] or None,
+                            artist=artist_of(m),
                             license=m.get("LicenseShortName", {}).get("value"),
                             licenseUrl=m.get("LicenseUrl", {}).get("value"))
     return out
@@ -83,7 +90,8 @@ def main():
     rows = list(csv.DictReader(open("data/raw/wd_buildings.csv")))
     items = {}
     for r in rows:
-        it = items.setdefault(r["i"], dict(bags=set(), label=r["labelEn"] or r["labelNl"], en=r["en"], nl=r["nl"],
+        it = items.setdefault(r["i"], dict(bags=set(), label=r["labelEn"] or r["labelNl"], label_nl=r["labelNl"] or r["labelEn"],
+                                           en=r["en"], nl=r["nl"],
                                            image=None, architects=[a for a in r["architects"].split("|") if a],
                                            styles=[s for s in r["styles"].split("|") if s]))
         it["bags"].add(r["bag"].zfill(16))
@@ -91,7 +99,7 @@ def main():
             it["image"] = unquote(r["image"].rsplit("/", 1)[1]).replace("_", " ")
 
     ex_en = extracts("en", {title_of(i["en"]) for i in items.values() if i["en"]})
-    ex_nl = extracts("nl", {title_of(i["nl"]) for i in items.values() if i["nl"] and not i["en"]})
+    ex_nl = extracts("nl", {title_of(i["nl"]) for i in items.values() if i["nl"]})
     imgs = images({i["image"] for i in items.values() if i["image"]})
     print(f"extracts en {len(ex_en)}, nl {len(ex_nl)}; images {len(imgs)}")
 
@@ -107,7 +115,9 @@ def main():
         if not (wiki or img):
             continue
         k = len(entries)
-        entries.append(dict(label=it["label"], wiki=wiki, architects=it["architects"], styles=it["styles"], image=img))
+        wiki_nl = dict(lang="nl", url=it["nl"], extract=ex_nl.get(title_of(it["nl"]))) if it["nl"] else None
+        entries.append(dict(label=it["label"], label_nl=it["label_nl"], wiki=wiki, wiki_nl=wiki_nl,
+                            architects=it["architects"], styles=it["styles"], image=img))
         for b in it["bags"]:
             index.setdefault(b, k)
     Path("web/data/wiki.json").write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")))
