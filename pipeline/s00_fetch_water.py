@@ -40,4 +40,6 @@ def fetch(collection):
 
 
 if __name__ == "__main__":
-    fetch("waterdeel")
+    import sys
+    for c in sys.argv[1:] or ["waterdeel"]:
+        fetch(c)

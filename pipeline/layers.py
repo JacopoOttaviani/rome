@@ -108,7 +108,7 @@ TO_RD = Transformer.from_crs(4326, 28992, always_xy=True)
 # ---------- layers ----------
 
 @layer(
-    id="gables", title="Gables", era="1600–1800",
+    id="gables", section="Architecture", title="Gables", era="1600–1800",
     text=("A canal house shows its age in its top. Stepped gables belong to the early 1600s, neck gables "
           "to the middle of the century, bell gables to the decades around 1700, and the flat cornice "
           "to the 1700s, when the richest owners hid the roof altogether."),
@@ -129,7 +129,7 @@ def gables():
 
 
 @layer(
-    id="trade", title="Warehouses and the companies", era="1600–1800",
+    id="trade", section="Trade and empire", title="Warehouses and the companies", era="1600–1800",
     text=("Amsterdam stored the goods of the world in its houses. Warehouses with shutters, hoisting beams "
           "and stacked loading doors line the Brouwersgracht, the western islands and the Entrepotdok. "
           "The East and West India Companies ran their trade from a handful of buildings that still stand."),
@@ -144,7 +144,7 @@ def trade():
 
 
 @layer(
-    id="unesco", title="The canal ring", era="1613–1665",
+    id="unesco", section="Architecture", title="The canal ring", era="1613–1665",
     text=("The seventeenth-century ring of canals, dug in three phases and built up with merchants' houses, "
           "has been a UNESCO World Heritage site since 2010. The buffer zone around it protects the views."),
     source=("Gemeente Amsterdam, UNESCO zones", "https://api.data.amsterdam.nl/v1/monumenten/unesco/"),
@@ -159,7 +159,7 @@ def unesco():
 
 
 @layer(
-    id="faith", title="Faith and charity", era="1400–1900",
+    id="faith", section="Faith and community", title="Faith and charity", era="1400–1900",
     text=("Under the Republic, Catholics worshipped in hidden churches behind house fronts, Jews from Portugal "
           "and Central Europe built the city's great synagogues, and wealthy citizens founded hofjes: "
           "courtyards of almshouses for the elderly poor."),
@@ -196,7 +196,7 @@ STYLE_GROUPS = [
 
 
 @layer(
-    id="styles", title="Architecture styles", era="1850–1940",
+    id="styles", section="Architecture", title="Architecture styles", era="1850–1940",
     text=("Between Cuypers' Rijksmuseum and the white blocks of the Nieuwe Bouwen, Amsterdam tried on a style "
           "a generation. Berlage stripped ornament back to brick; his pupils of the Amsterdam School turned brick "
           "into sculpture across the new housing districts."),
@@ -215,38 +215,67 @@ def styles():
 
 
 ARCHITECTS = [
-    ("cuypers", "Cuypers", ("Cuypers, P.J.H.", "Cuypers, Ed.")),
+    ("cuypers", "Cuypers", ("Cuypers, P.J.H.", "Cuypers, Ed.", "Cuypers, Ed")),
     ("berlage", "Berlage", ("Berlage, H.P.",)),
-    ("deklerk", "De Klerk", ("Klerk, M. de",)),
-    ("kramer", "Kramer", ("Kramer, P.L.",)),
     ("vangendt", "Van Gendt", ("Gendt, A.L. van",)),
-    ("pw", "Public Works", ("Publieke Werken, Dienst der",)),
+    ("as", "Amsterdam School architects", ("Klerk, M. de", "Kramer, P.L.", "Westerman, A.J.", "Rutgers, G.J.",
+                                           "Boterenbrood, J.G.", "Kruyswijk, C.", "Roodenburgh, J.R.", "Staal, J.F.",
+                                           "Gratama, J.", "Kropholler, A.J.", "Wijdeveld, H.Th.", "Epen, J.C. van",
+                                           "Croix, J.F. la")),
+    ("pw", "Public Works", ("Publieke Werken", "Dienst Publieke Werken", "Publieke Werken, Dienst der")),
+    ("nb", "Nieuwe Bouwen", ("Duiker, J.", "Merkelbach, B.", "Eesteren, C. van", "Rietveld, G.Th.", "Stam, M.",
+                             "Bijvoet, B.", "Elling, P.")),
 ]
+ORDE_FILES = ["orde_centrum_gebouwen", "orde_gordel_gebouwen", "orde_ring_gebouwen", "orde_aup_gebouwen"]
+
+
+@cache
+def orde() -> gpd.GeoDataFrame:
+    frames = []
+    for f in ORDE_FILES:
+        g = gpd.read_file(f"{RAW}/{f}.geojson").to_crs(28992)
+        g.columns = [c.lower() for c in g.columns]
+        frames.append(g[["architect", "bouwjaar", "orde", "geometry"]])
+    return gpd.GeoDataFrame(pd.concat(frames), crs=28992)
 
 
 @layer(
-    id="architects", title="Architects", era="1870–1940",
-    text=("A few names built much of the city that tourists photograph: Cuypers the Rijksmuseum and Centraal "
-          "Station, Van Gendt the Concertgebouw, Berlage the Exchange, De Klerk and Kramer the Amsterdam School "
-          "housing, and the city's own Public Works department its schools, bridges and bathhouses."),
-    caveat="Listed buildings only, by the architect the city's monuments register names.",
-    source=("Gemeente Amsterdam, monuments register", "https://api.data.amsterdam.nl/v1/monumenten/monumenten/"),
+    id="architects", section="Architecture", title="Architects", era="1870–1940",
+    text=("A few names built much of the city that visitors photograph: Cuypers the Rijksmuseum and Centraal "
+          "Station, Van Gendt the Concertgebouw, Berlage the Exchange, the Amsterdam School architects the "
+          "housing blocks of Zuid and West, the city's own Public Works its schools and bridges, and the "
+          "Nieuwe Bouwen its first glass and concrete."),
+    caveat=("From the monuments register and the city's survey of cultural-historical value, which names the "
+            "architect for the centre and the districts built up to 1965."),
+    source=("Gemeente Amsterdam, monuments register and orde survey", "https://maps.amsterdam.nl/open_geodata/"),
     groups=[(k, label) for k, label, _ in ARCHITECTS],
 )
 def architects():
-    to_group = {n: k for k, _, names in ARCHITECTS for n in names}
-    keyed = {}
+    def group_of(name):
+        name = name if isinstance(name, str) else ""
+        for k, _, names in ARCHITECTS:
+            if any(n in name for n in names):
+                return k
+    out = {}
     for m in monuments():
-        a = m["architect"] or ""
-        for name, k in to_group.items():
-            if name in a:
-                keyed[str(m["nr"])] = k
-                break
-    return by_monument(keyed)
+        k = group_of(m["architect"])
+        if k:
+            for p in m["panden"]:
+                out[p] = (k, {"story": f"Designed by {m['architect']}."})
+    o = orde()
+    o["k"] = o.architect.map(group_of)
+    o = o[o.k.notna()]
+    b = buildings()
+    pts = gpd.GeoDataFrame({"bag": b.bag}, geometry=b.geometry.centroid, crs=28992)
+    j = gpd.sjoin(pts, o, predicate="within")
+    for bag, k, a, y in zip(j.bag, j.k, j.architect, j.bouwjaar):
+        year = f" ({y})" if str(y).isdigit() and int(y) > 1000 else ""
+        out.setdefault(bag, (k, {"story": f"Designed by {a}{year}."}))
+    return out
 
 
 @layer(
-    id="housing", title="Housing Act homes", era="1901–1940",
+    id="housing", section="The modern city", title="Housing Act homes", era="1901–1940",
     text=("The Housing Act of 1901 let housing associations build with public money. Within forty years "
           "they had replaced the slums with whole districts of sound workers' homes, and they still own "
           "these blocks today."),
@@ -270,7 +299,7 @@ PLANNED = [
 
 
 @layer(
-    id="planned", title="The planned city", era="1915–1980",
+    id="planned", section="The modern city", title="The planned city", era="1915–1980",
     text=("Twentieth-century Amsterdam grew by plan: Berlage's Plan Zuid, the concrete village of Betondorp, "
           "Van Eesteren's garden cities in the west, the honeycomb high-rise of the Bijlmermeer and the "
           "1980s renewal of IJplein. The city now protects each of them as a cityscape."),
@@ -284,7 +313,7 @@ def planned():
 
 
 @layer(
-    id="war", title="Under fire, 1940–1945", era="1940–1945",
+    id="war", section="War and occupation", title="Under fire, 1940–1945", era="1940–1945",
     text=("Amsterdam was spared the destruction of Rotterdam, yet bombs, shells and crashing aircraft still "
           "hit hundreds of addresses. The city archive mapped each incident from the reports of the time."),
     caveat="Buildings within 15 m of a recorded incident; some stand on the site of the building that was hit.",
@@ -299,7 +328,7 @@ def war():
 
 
 @layer(
-    id="noord1943", title="The raid on Noord, 17 July 1943", era="1943",
+    id="noord1943", section="War and occupation", title="The raid on Noord, 17 July 1943", era="1943",
     text=("Allied bombers aimed at the Fokker aircraft works in Noord and missed: their bombs fell on the "
           "streets around it and killed 185 people. Buildings near the impacts that date from after the war "
           "mark what had to be rebuilt."),
@@ -315,31 +344,61 @@ def noord1943():
     return {p: ("rebuilt" if years[p] > 1943 else "stood") for p in hit}
 
 
+TECHNIQUE = {"Reliëf": "relief", "Schildering": "mural", "Mozaïek": "mosaic", "Sculptuur": "sculpture",
+             "Glasappliqué": "glass appliqué", "Sgraffito": "sgraffito", "Baksteenmozaïek": "brick mosaic",
+             "Glas, anders": "glass work", "Glas-in-lood": "stained glass", "Glas-in-beton": "glass in concrete"}
+
+
 @layer(
-    id="jewish", title="Jewish Amsterdam and the war", era="1639–1945",
-    text=("Before 1940 one Amsterdammer in ten was Jewish; about 60,000 of them were murdered. From the "
-          "Hollandsche Schouwburg, the theatre where they were gathered for deportation, to the house on the "
-          "Prinsengracht where Anne Frank hid, the places of that history still stand among the synagogues "
-          "of the old Jewish quarter."),
-    caveat=("The homes of the victims are not shown: the dataset linking the Joods Monument to buildings has "
-            "no open licence. joodsmonument.nl lists every person and address."),
-    source=("Joods Monument", "https://www.joodsmonument.nl"),
-    groups=[("site", "Site of persecution and hiding"), ("synagogue", "Synagogue")],
+    id="wallart", section="The modern city", title="Art on the walls", era="1945–1985",
+    text=("After the war the city spent a share of every public building's budget on art. Reliefs, mosaics, "
+          "murals and glass were built into schools, offices and housing blocks; the city has surveyed them and "
+          "ranked the best."),
+    source=("Gemeente Amsterdam, wall art survey", "https://maps.amsterdam.nl/wandkunst/"),
+    groups=[("top", "Of top value"), ("valuable", "Valuable")],
 )
-def jewish():
-    # Hollandsche Schouwburg, Anne Frank Huis, De Joodsche Invalide, Plancius (Verzetsmuseum)
-    keyed = {nr: "site" for nr in ("532241", "4296", "518494", "518400")}
-    for r in csv.DictReader(open("data/raw/wd_monuments.csv")):
-        if "synago" in r["label"].lower():
-            keyed.setdefault(r["nr"], "synagogue")
-    for m in monuments():
-        if "synago" in (m["name"] or "").lower():
-            keyed.setdefault(str(m["nr"]), "synagogue")
-    return by_monument(keyed)
+def wallart():
+    g = gpd.read_file(f"{RAW}/wandkunst.geojson").to_crs(28992)
+    g["k"] = g.Waardering.map(lambda w: "top" if w == "Top" else "valuable")
+    out = {}
+    b = buildings()
+    for _, r in g.iterrows():
+        near = b[b.distance(r.geometry) < 12]
+        if near.empty:
+            continue
+        bag = near.iloc[(near.distance(r.geometry)).argmin()].bag if len(near) > 1 else near.bag.iloc[0]
+        tech = TECHNIQUE.get(r.Techniek, (r.Techniek or "work").lower())
+        year = f", {r.Jaartal}" if r.Jaartal else ""
+        out[bag] = (r.k, {"story": f"“{r.Titel_kunstwerk}”, a {tech} by {r.Kunstenaar}{year}."})
+    return out
 
 
 @layer(
-    id="heritage", title="Protected heritage", era="All periods",
+    id="arcam", section="The modern city", title="Prize-winning architecture", era="1987–today",
+    text=("Every year ARCAM, Amsterdam's architecture centre, nominates the best new buildings in the city for "
+          "the Amsterdam Architecture Prize, chosen by a jury and by the public."),
+    source=("ARCAM, Amsterdam Architecture Prize", "https://maps.amsterdam.nl/open_geodata/"),
+    groups=[("won", "Winner"), ("nominated", "Nominated")],
+)
+def arcam():
+    g = gpd.read_file(f"{RAW}/architectuurprijs_arcam.geojson").to_crs(28992)
+    out = {}
+    b = buildings()
+    for _, r in g.iterrows():
+        near = b[b.distance(r.geometry) < 15]
+        if near.empty:
+            continue
+        won = "prijs" in (r.Win_genomineerd or "").lower()
+        verdict = {"Vakprijs": "won the jury prize", "Publieksprijs": "won the public prize",
+                   "Publieksprijs - Vakprijs": "won both the jury and the public prize"}.get(r.Win_genomineerd, "was nominated")
+        story = f"{r.Project} by {r.Architect} {verdict} in {r.Jaar}."
+        for bag in near.bag:
+            out[bag] = ("won" if won else "nominated", {"story": story})
+    return out
+
+
+@layer(
+    id="heritage", section="Architecture", title="Protected heritage", era="All periods",
     text=("About one building in twenty is a listed monument: by the State for national significance, "
           "or by the city for local value."),
     source=("Gemeente Amsterdam, monuments register", "https://api.data.amsterdam.nl/v1/monumenten/monumenten/"),
@@ -352,3 +411,29 @@ def heritage():
             if m["status"] == "Rijksmonument" or p not in out:
                 out[p] = m["status"]
     return out
+
+
+def _curated_layer(L):
+    groups = L.get("groups") or [(L["id"], L["title"])]
+
+    def fn():
+        out = {}
+        for e in L["entries"]:
+            out[e["bag"]] = (e["group"], {"story": e["story"], "source": e["source"], "name": e["name"]})
+        if L["id"] == "jewish":
+            # Synagogues in the monuments register that the curated list does not name.
+            for nr, ps in monument_panden().items():
+                m = next((m for m in monuments() if str(m["nr"]) == nr), None)
+                if m and "synago" in (m["name"] or "").lower():
+                    for p in ps:
+                        out.setdefault(p, ("community", {"story": f"{m['name']}."}))
+        return out
+
+    section = "Faith and community" if L["id"] == "jewish" else "Countries and communities"
+    LAYERS.append(dict(id=L["id"], section=section, title=L["title"], era=L["era"], text=L["intro"],
+                       caveat=L.get("caveat"), source=("Wikipedia, per building", "https://www.wikipedia.org"),
+                       groups=[tuple(g) for g in groups], source_fn=fn))
+
+
+for _L in json.load(open("data/curated.json")):
+    _curated_layer(_L)

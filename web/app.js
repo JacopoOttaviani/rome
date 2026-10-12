@@ -32,6 +32,9 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(35, 1, 5, 60000);
 const controls = new MapControls(camera, canvas);
 controls.enableDamping = true;
+// Left drag turns and tilts the city; right drag, or Shift with the left, moves it.
+controls.mouseButtons = { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
+controls.rotateSpeed = 0.6;
 controls.maxPolarAngle = Math.PI * 0.47;
 controls.minDistance = 60;
 controls.maxDistance = 30000;
@@ -75,6 +78,83 @@ const water = new THREE.Mesh(waterGeo, new THREE.MeshBasicMaterial({ color: WATE
 land.position.y = -0.05;
 water.position.y = -0.4;
 flat.add(land, water);
+
+// ---------- Street and canal names ----------
+// Flat on the ground, turned along the street (pipeline/s07_labels.py). Textures are drawn on first use.
+const labelData = await fetch('data/labels.json').then(r => r.json());
+const labelGroup = new THREE.Group();
+scene.add(labelGroup);
+const labelTex = new Map();
+const LABEL_PX = 64;
+function textureFor(L) {
+  let t = labelTex.get(L.name + L.water);
+  if (t) return t;
+  const c = document.createElement('canvas'), ctx = c.getContext('2d');
+  const font = `${L.water ? 'italic 500' : '700'} ${LABEL_PX * 0.62}px "Schibsted Grotesk", sans-serif`;
+  ctx.font = font;
+  c.width = Math.ceil(ctx.measureText(L.name).width + LABEL_PX * 0.4);
+  c.height = LABEL_PX;
+  ctx.font = font;
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = LABEL_PX * 0.12;
+  ctx.strokeStyle = L.water ? 'rgba(200,214,213,0.95)' : 'rgba(250,249,246,0.95)';
+  ctx.fillStyle = L.water ? '#1f4f5e' : '#25292c';
+  ctx.strokeText(L.name, LABEL_PX * 0.2, LABEL_PX / 2);
+  ctx.fillText(L.name, LABEL_PX * 0.2, LABEL_PX / 2);
+  t = new THREE.CanvasTexture(c);
+  t.anisotropy = 4;
+  t.userData = { aspect: c.width / c.height };
+  labelTex.set(L.name + L.water, t);
+  return t;
+}
+const labelPlane = new THREE.PlaneGeometry(1, 1);
+const labels = labelData.flatMap(L => L.pts.map(([x, z, ang, len]) => ({ L, x, z, ang, len, mesh: null })))
+  .sort((a, b) => a.L.tier - b.L.tier || b.len - a.len);
+function updateLabels(dist) {
+  if (!document.fonts.check('700 16px "Schibsted Grotesk"')) return;
+  // Label height in metres, roughly constant on screen; the canals and main streets read larger.
+  const h1 = THREE.MathUtils.clamp(dist * 0.022, 9, 170), h2 = THREE.MathUtils.clamp(dist * 0.015, 6, 34);
+  const near = Math.max(1200, dist * 1.2), far = Math.max(9000, dist * 3);
+  // Greedy collision: canals and main streets first, then the longest stretches; a label is dropped
+  // when an accepted one already sits within a few label heights of it.
+  const taken = new Map(), C = h1 * 5; // one grid, cells as wide as the largest separation
+  const cellOf = (x, z) => `${Math.floor(x / C)},${Math.floor(z / C)}`;
+  const clear = (l, sep) => {
+    const cx = Math.floor(l.x / C), cz = Math.floor(l.z / C);
+    for (let i = -1; i <= 1; i++) for (let j = -1; j <= 1; j++) {
+      for (const q of taken.get(`${cx + i},${cz + j}`) || []) if ((q.x - l.x) ** 2 + (q.z - l.z) ** 2 < sep * sep) return false;
+    }
+    return true;
+  };
+  for (const l of labels) {
+    const d = Math.hypot(l.x - camera.position.x, l.z - camera.position.z);
+    let show = d < (l.L.tier === 1 ? far : near) && (l.L.tier === 1 || dist < 1800);
+    const sep = (l.L.tier === 1 ? h1 : h2) * 5;
+    if (show && !clear(l, sep)) show = false;
+    if (show) {
+      const key = cellOf(l.x, l.z);
+      if (!taken.has(key)) taken.set(key, []);
+      taken.get(key).push(l);
+    }
+    if (show && !l.mesh) {
+      const tex = textureFor(l.L);
+      l.mesh = new THREE.Mesh(labelPlane, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
+      // Turn about the vertical first, then lay the plane flat.
+      l.mesh.rotation.set(-Math.PI / 2, THREE.MathUtils.degToRad(-l.ang), 0, "YXZ"); // ang is measured towards +z, Y turns towards -z
+      l.mesh.position.set(l.x, l.L.water ? 0.4 : 0.6, l.z);
+      l.mesh.renderOrder = 2;
+      labelGroup.add(l.mesh);
+    }
+    if (l.mesh) {
+      const h = l.L.tier === 1 ? h1 : h2;
+      const w = h * l.mesh.material.map.userData.aspect;
+      // A name much longer than its stretch of street would spill over the buildings.
+      if (show && w > l.len * 1.6 && l.L.tier === 2) show = false;
+      l.mesh.visible = show;
+      if (show) l.mesh.scale.set(w, h, 1);
+    }
+  }
+}
 
 // ---------- Shared uniforms ----------
 const col = c => new THREE.Color(c);
@@ -242,6 +322,7 @@ function pick(x, y) {
   camera.setViewOffset(w, h, x, y, 1, 1);
   for (const m of meshes) m.material = m.userData.pick;
   flat.visible = false;
+  labelGroup.visible = false;
   renderer.setRenderTarget(pickTarget);
   renderer.setClearColor(0x000000, 0);
   renderer.clear();
@@ -250,6 +331,7 @@ function pick(x, y) {
   renderer.setRenderTarget(null);
   renderer.setClearColor(SKY, 1);
   flat.visible = true;
+  labelGroup.visible = true;
   for (const m of meshes) m.material = m.userData.draw;
   camera.clearViewOffset();
   return pickPixel[0] + pickPixel[1] * 256 + pickPixel[2] * 65536 - 1;
@@ -290,37 +372,52 @@ fetch('data/wiki.json').then(r => r.json()).then(w => { wiki = w; });
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>`;
 
+function groupColor(g) {
+  return GROUP_COLORS[g.layer.groups.findIndex(x => x.bit === g.bit)] || GROUP_COLORS[0];
+}
+
+// The card reads top to bottom: photo, name and year; what the building is; the layers it belongs to and why;
+// the facts; how its date was found; where to read more.
 function cardHtml(gid, pinned) {
   const b = building(gid);
   const w = b.wk >= 0 ? wiki[b.wk] : null;
   const im = w?.image?.thumb ? w.image : null;
-  const rows = [
-    b.orig !== b.year && ['BAG says', b.orig],
+  const period = periodOf(b.year);
+  const facts = [
     ['Height', `${b.height.toFixed(1)} m`],
-    ['Storeys from', b.fsrc === 0 ? '3D BAG model' : 'height ÷ 3.2 m'],
+    ['Storeys', b.fsrc === 0 ? 'from the 3D BAG model' : 'height ÷ 3.2 m'],
     w?.architects?.length && [w.architects.length > 1 ? 'Architects' : 'Architect', w.architects.map(esc).join(', ')],
     w?.styles?.length && ['Style', w.styles.map(esc).join(', ')],
-    b.mon && ['National monument', b.mon],
+    b.mon && ['National monument', `no. ${b.mon}`],
   ].filter(Boolean);
   const credit = im && (pinned
-    ? `Photo: ${link(im.page || im.thumb, im.artist || 'Wikimedia Commons')}${im.license ? `, ${im.licenseUrl ? link(im.licenseUrl, im.license) : esc(im.license)}` : ''}`
-    : `Photo: ${esc(im.artist || 'Wikimedia Commons')}${im.license ? `, ${esc(im.license)}` : ''}`);
+    ? `${link(im.page || im.thumb, im.artist || 'Wikimedia Commons')}${im.license ? `, ${im.licenseUrl ? link(im.licenseUrl, im.license) : esc(im.license)}` : ''}`
+    : `${esc(im.artist || 'Wikimedia Commons')}${im.license ? `, ${esc(im.license)}` : ''}`);
   const sources = [
-    w?.wiki?.url && link(w.wiki.url, w.wiki.lang === 'nl' ? 'Read on Dutch Wikipedia' : 'Read on Wikipedia'),
+    w?.wiki?.url && link(w.wiki.url, w.wiki.lang === 'nl' ? 'Dutch Wikipedia' : 'Wikipedia'),
     b.mon && link(`https://monumentenregister.cultureelerfgoed.nl/monumenten/${b.mon}`, 'Monument register'),
     link(`https://bagviewer.kadaster.nl/lvbag/bag-viewer/?objectId=${b.bag}`, 'BAG register'),
   ].filter(Boolean);
+  const inLayers = b.groups.map(g => {
+    const note = g.layer.notes?.[b.bag];
+    return `<li><i style="background:${groupColor(g)}"></i><div><b>${esc(g.layer.title)}</b> <span>${esc(g.label)}</span>
+      ${pinned && note ? `<p>${esc(note.story)}${note.source ? ` ${link(note.source, 'Source')}` : ''}</p>` : ''}</div></li>`;
+  }).join('');
+  const dating = b.orig !== b.year ? `${DATE_NOTE[b.flag] || ''} BAG gives ${b.orig}.` : DATE_NOTE[b.flag];
   return `
     ${pinned ? '<button class="card-close" aria-label="Close">×</button>' : ''}
-    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>${credit}</figcaption></figure>` : ''}
-    ${w?.label ? `<div class="name">${esc(w.label)}</div>` : ''}
-    <div class="y">${b.flag && b.flag !== 3 ? 'c. ' : ''}${b.year}</div>
-    <div class="p">${periodOf(b.year).label}</div>
-    ${pinned && w?.wiki?.extract ? `<p class="extract">${esc(w.wiki.extract)}</p>` : ''}
-    <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-    ${b.groups.length ? `<div class="in-layer">${b.groups.map(g => `${esc(g.layer.title)}: ${esc(g.label)}`).join('<br>')}</div>` : ''}
-    ${DATE_NOTE[b.flag] ? `<p class="why">${DATE_NOTE[b.flag]}</p>` : ''}
-    ${pinned ? `<div class="sources">${sources.join('')}</div>` : (w?.wiki ? '<p class="hint">Click for the article</p>' : '')}`;
+    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>Photo: ${credit}</figcaption></figure>` : ''}
+    <header class="card-head">
+      ${w?.label ? `<h3>${esc(w.label)}</h3>` : ''}
+      <div class="when"><span class="y">${b.flag && b.flag !== 3 ? 'c. ' : ''}${b.year}</span>
+        <span class="period"><i style="background:${period.color}"></i>${esc(period.label)}</span></div>
+    </header>
+    ${pinned && w?.wiki?.extract ? `<section><p class="extract">${esc(w.wiki.extract)}</p></section>` : ''}
+    ${inLayers ? `<section><h4>In layers</h4><ul class="chips">${inLayers}</ul></section>` : ''}
+    <section><dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></section>
+    ${dating ? `<section><h4>Dating</h4><p class="why">${dating}</p></section>` : ''}
+    ${pinned ? `<section class="sources"><h4>Read more</h4><p>${sources.join(', ')}</p></section>`
+      : `<p class="hint">${w?.wiki || b.groups.some(g => g.layer.notes?.[b.bag]) ? 'Click for the story and sources' : 'Click to keep this card open'}</p>`}`;
 }
 
 const card = document.getElementById('card');
@@ -373,12 +470,41 @@ canvas.addEventListener('pointerup', e => {
 });
 canvas.addEventListener('pointerleave', () => { pointer = null; if (pinnedGid < 0) card.hidden = true; uniforms.uHover.value = -1; });
 
+// ---------- Flying to a building ----------
+let bagIndex = null;
+function gidOf(bag) {
+  if (!bagIndex) {
+    bagIndex = new Map();
+    for (let g = 0; g < config.stats.buildings; g++) {
+      bagIndex.set(String(attrs.getFloat64(g * config.attrStride, true)).padStart(16, '0'), g);
+    }
+  }
+  return bagIndex.get(bag) ?? -1;
+}
+let flight = null;
+function flyTo(x, z, done) {
+  const dir = camera.position.clone().sub(controls.target).normalize();
+  if (dir.y < 0.45) { dir.y = 0.45; dir.normalize(); }
+  const target = new THREE.Vector3(x, 0, z);
+  flight = { t0: performance.now(), dur: 1400, fromT: controls.target.clone(), toT: target,
+    fromP: camera.position.clone(), toP: target.clone().add(dir.multiplyScalar(520)), done };
+}
+function stepFlight(now) {
+  if (!flight) return;
+  const k = Math.min(1, (now - flight.t0) / flight.dur), e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
+  controls.target.lerpVectors(flight.fromT, flight.toT, e);
+  camera.position.lerpVectors(flight.fromP, flight.toP, e);
+  if (k >= 1) { const d = flight.done; flight = null; d?.(); }
+}
+
 // ---------- Panel ----------
 const panel = document.getElementById('panel');
 const totals = periods.map(() => 0);
 for (const v of Object.values(config.histogram)) v.forEach((n, i) => totals[i] += n);
 const fmt = n => n.toLocaleString('en');
 let activeLayer = null;
+const SECTION_ORDER = ['Architecture', 'Trade and empire', 'Faith and community', 'Countries and communities',
+  'The modern city', 'War and occupation'];
 const groupOn = {};
 
 function renderPanel() {
@@ -401,15 +527,23 @@ function renderPanel() {
       <div class="ramp-scale"><span>1</span><span>3</span><span>8</span><span>20</span><span>40+</span></div>
       <p class="note">${fmt(config.stats.floorsBag3d)} buildings take their storeys from the 3D BAG model; the rest, ${fmt(config.stats.floorsHeight)}, from their height divided by 3.2 m.</p>`;
   } else if (!activeLayer) {
-    panel.innerHTML = `<h2>Layers</h2><div class="layers">${layers.map(L => `
+    const sections = [...new Set(layers.map(L => L.section))].sort((a, b) => SECTION_ORDER.indexOf(a) - SECTION_ORDER.indexOf(b));
+    panel.innerHTML = sections.map(sec => `<h2 class="section">${esc(sec)}</h2><div class="layers">${layers.filter(L => L.section === sec).map(L => `
       <button class="layer" data-id="${L.id}">
-        <b>${L.title}</b><span class="n">${fmt(L.count)}</span><span class="era">${L.era}</span>
-      </button>`).join('')}</div>`;
+        <b>${esc(L.title)}</b><span class="n">${fmt(L.count)}</span><span class="era">${esc(L.era)}</span>
+      </button>`).join('')}</div>`).join('');
     panel.querySelectorAll('.layer').forEach(b => b.onclick = () => setLayer(layers.find(l => l.id === b.dataset.id)));
   } else {
     panel.innerHTML = `<button class="back">All layers</button>
       <h2 class="layer-title">${activeLayer.title}</h2><p class="layer-era">${activeLayer.era}</p>${layerDetail(activeLayer)}`;
     panel.querySelector('.back').onclick = () => setLayer(null);
+    panel.querySelectorAll('.story').forEach(b => b.onclick = () => {
+      const n = activeLayer.notes[b.dataset.bag];
+      flyTo(n.at[0], n.at[1], () => {
+        const gid = gidOf(b.dataset.bag);
+        if (gid >= 0) pinCard(gid, innerWidth * 0.62, innerHeight * 0.18);
+      });
+    });
     panel.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
       groupOn[b.dataset.bit] = groupOn[b.dataset.bit] === false;
       setLayer(activeLayer);
@@ -422,7 +556,10 @@ function layerDetail(L) {
     <button class="swatch" data-bit="${g.bit}" aria-pressed="${groupOn[g.bit] !== false}">
       <i style="background:${GROUP_COLORS[i]}"></i><span>${g.label}</span><span class="n">${fmt(g.count)}</span>
     </button>`).join('')}</div>` : '';
-  return `<div class="layer-detail"><p>${L.text}</p>${groups}
+  const named = Object.entries(L.notes || {}).filter(([, n]) => n.name && n.at);
+  const stories = named.length ? `<h2 class="section">Buildings and their stories</h2><ul class="stories">${named.map(([bag, n]) => `
+    <li><button class="story" data-bag="${bag}"><b>${esc(n.name)}</b><span>${esc(n.story)}</span></button></li>`).join('')}</ul>` : '';
+  return `<div class="layer-detail"><p>${L.text}</p>${groups}${stories}
     ${L.caveat ? `<p class="caveat">${L.caveat}</p>` : ''}
     <a href="${L.source.url}" target="_blank" rel="noopener">${L.source.label}</a></div>`;
 }
@@ -572,16 +709,19 @@ document.fonts?.ready.then(drawHist);
 
 let frame = 0;
 renderer.setAnimationLoop(now => {
+  frame++;
+  stepFlight(now);
   controls.update();
   const dist = camera.position.distanceTo(controls.target);
   uniforms.uFog.value.set(dist * 1.6, dist * 4);
+  if (frame % 6 === 0) updateLabels(dist);
   if (playing) {
     const t = Math.min(1, playT0 + (now - playStart) / DURATION);
     uniforms.uYear.value = Math.round(playYear(t));
     if (t >= 1) stopPlay();
     drawHist();
   }
-  if (pointer && !dragging && ++frame % 3 === 0) {
+  if (pointer && !dragging && frame % 3 === 0) {
     const gid = pick(pointer[0], pointer[1]);
     uniforms.uHover.value = gid;
     showCard(gid, pointer[0], pointer[1]);
@@ -589,4 +729,4 @@ renderer.setAnimationLoop(now => {
   renderer.render(scene, camera);
 });
 
-window.__dbg = { pick, uniforms, camera, controls, setLayer, layers, pinCard, showCard, building };
+window.__dbg = { pick, uniforms, camera, controls, setLayer, layers, pinCard, showCard, building, labelGroup, labels };
