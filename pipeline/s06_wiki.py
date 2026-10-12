@@ -120,6 +120,25 @@ def main():
                             architects=it["architects"], styles=it["styles"], image=img))
         for b in it["bags"]:
             index.setdefault(b, k)
+    # Photos found on Commons by address (s10_commons) fill buildings that have none yet.
+    commons = Path("data/commons_best.json")
+    if commons.exists():
+        best = json.loads(commons.read_text())
+        need = {bag: f for bag, f in best.items()
+                if bag not in index or not entries[index[bag]].get("image")}
+        found = images({f["title"][5:] for f in need.values()})
+        added = 0
+        for bag, f in need.items():
+            img = found.get(f["title"][5:])
+            if not img or not img.get("thumb"):
+                continue
+            if bag in index:
+                entries[index[bag]]["image"] = img
+            else:
+                index[bag] = len(entries)
+                entries.append(dict(label=None, label_nl=None, wiki=None, wiki_nl=None, architects=[], styles=[], image=img))
+            added += 1
+        print(added, "buildings got a Commons photo by address")
     Path("web/data/wiki.json").write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")))
     pd.DataFrame({"bag": list(index), "wk": list(index.values())}).to_parquet("data/wiki_index.parquet")
     print(len(entries), "entries for", len(index), "panden;", Path("web/data/wiki.json").stat().st_size // 1024, "KB")

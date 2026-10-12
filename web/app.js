@@ -212,10 +212,10 @@ const uniforms = {
   uYearFrom: { value: config.yearMin - 1 },
   uMode: { value: MODE.period },
   uPalette: { value: periods.map(p => col(p.color)) },
-  uMask: { value: periods.map(() => 1) },        // animated towards maskTarget, so a period sinks and rises
+  uMask: { value: periods.map(() => 1) },
   uNow: { value: 0 },                              // seconds, for tiles dropping in as they load
   uPlaying: { value: 0 },                          // while the film plays buildings fly in rather than grow
-  uRise: { value: 2 },                             // years a building takes to grow when scrubbing
+  uRise: { value: 0.01 },                          // years a building's entrance spans; only the film widens it
   uGroupBit: { value: Array(MAX_GROUPS).fill(-1) },
   uGroupColor: { value: GROUP_COLORS.map(col) },
   uMaquette: { value: col(MAQUETTE) },
@@ -267,13 +267,13 @@ const VERT = /* glsl */`
     g = g * g * (3.0 - 2.0 * g);
     if (g <= 0.003 || vis <= 0.003) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 
-    // Entrances. Scrubbing grows a building out of its ground; the film, a legend click and a loading tile
-    // drop it in from its own side of the sky instead, the same side every time (seeded by its id).
+    // Entrances, only while the film plays and while tiles load: a building drops in from its own side of the
+    // sky, the same side every time (seeded by its id). Filters and scrubbing change the city at once.
     vec3 p = position;
     float seed = fract(sin(a.w * 12.9898) * 43758.5453);
     float arrive = clamp((uNow - uBorn) / 0.9 - seed * 0.35, 0.0, 1.0);
-    float fly = max(1.0 - vis, 1.0 - arrive);
-    if (uPlaying > 0.5) fly = max(fly, 1.0 - g); else p.y *= g;
+    float fly = 1.0 - arrive;
+    if (uPlaying > 0.5) fly = max(fly, 1.0 - g);
     if (fly > 0.0) {
       float e = fly * fly * fly;
       float ang = seed * 6.2831853;
@@ -883,7 +883,7 @@ function startPlay() {
 function stopPlay() {
   playing = false;
   uniforms.uPlaying.value = 0;
-  uniforms.uRise.value = 2;
+  uniforms.uRise.value = 0.01;
   uniforms.uYear.value = Math.round(uniforms.uYear.value);
   playIcon.setAttribute('d', 'M4 2.5v11l9-5.5z');
   playBtn.setAttribute('aria-label', "Play the city's growth");
@@ -936,9 +936,7 @@ renderer.setAnimationLoop(now => {
   frame++;
   stepFlight(now);
   uniforms.uNow.value = now / 1000;
-  // ease the period mask towards its target: a period sinks out of the city and drops back in
-  const m = uniforms.uMask.value;
-  for (let i = 0; i < m.length; i++) m[i] += (maskTarget[i] - m[i]) * 0.12;
+  uniforms.uMask.value = maskTarget;
   controls.update();
   const dist = camera.position.distanceTo(controls.target);
   uniforms.uFog.value.set(dist * 1.6, dist * 4);
