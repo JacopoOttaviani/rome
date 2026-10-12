@@ -31,10 +31,36 @@ function goHome() {
 }
 goHome();
 
-const ground = new THREE.Mesh(new THREE.PlaneGeometry(80000, 80000), new THREE.MeshBasicMaterial({ color: 0x14171e }));
-ground.rotation.x = -Math.PI / 2;
-ground.position.y = -0.05;
-scene.add(ground);
+// Land and water: flat polygons in the local frame (see pipeline/s04_water.py).
+async function loadPolygons(url) {
+  const buf = await (await fetch(url)).arrayBuffer();
+  const [nPoly, nRing, nVert] = new Uint32Array(buf, 0, 3);
+  const ringStart = new Uint32Array(buf, 12, nPoly + 1);
+  const vertStart = new Uint32Array(buf, 12 + 4 * (nPoly + 1), nRing + 1);
+  const xz = new Float32Array(buf, 12 + 4 * (nPoly + 1) + 4 * (nRing + 1), 2 * nVert);
+  const ring = r => {
+    const pts = [];
+    for (let v = vertStart[r]; v < vertStart[r + 1]; v++) pts.push(new THREE.Vector2(xz[2 * v], -xz[2 * v + 1]));
+    return pts;
+  };
+  const shapes = [];
+  for (let p = 0; p < nPoly; p++) {
+    const shape = new THREE.Shape(ring(ringStart[p]));
+    for (let r = ringStart[p] + 1; r < ringStart[p + 1]; r++) shape.holes.push(new THREE.Path(ring(r)));
+    shapes.push(shape);
+  }
+  const g = new THREE.ShapeGeometry(shapes);
+  g.rotateX(-Math.PI / 2);
+  return g;
+}
+const flat = new THREE.Group();
+scene.add(flat);
+const [landGeo, waterGeo] = await Promise.all([loadPolygons('data/land.bin'), loadPolygons('data/water.bin')]);
+const land = new THREE.Mesh(landGeo, new THREE.MeshBasicMaterial({ color: 0x1d2028 }));
+const water = new THREE.Mesh(waterGeo, new THREE.MeshBasicMaterial({ color: 0x0f2c45 }));
+land.position.y = -0.05;
+water.position.y = -0.4;
+flat.add(land, water);
 
 // ---------- Shared uniforms ----------
 const hex = c => new THREE.Color(c);
@@ -47,6 +73,7 @@ const uniforms = {
   uHover: { value: -1 },
   uSelected: { value: -1 },
   uFogColor: { value: hex(BG) },
+  uFog: { value: new THREE.Vector2(9000, 26000) },
 };
 
 const VERT = /* glsl */`
@@ -93,6 +120,7 @@ const VERT = /* glsl */`
 const FRAG = /* glsl */`
   precision highp float;
   uniform vec3 uFogColor;
+  uniform vec2 uFog;
   in vec3 vColor;
   in vec3 vWorld;
   in float vGid;
@@ -109,7 +137,7 @@ const FRAG = /* glsl */`
       float base = mix(0.7, 1.0, clamp(vWorld.y / 15.0, 0.0, 1.0));
       vec3 c = vColor * light * base;
       float d = length(vWorld - cameraPosition);
-      c = mix(c, uFogColor, smoothstep(9000.0, 26000.0, d));
+      c = mix(c, uFogColor, smoothstep(uFog.x, uFog.y, d));
       outColor = vec4(c, 1.0);
     #endif
   }
@@ -172,7 +200,7 @@ function pick(x, y) {
   const w = renderer.domElement.clientWidth, h = renderer.domElement.clientHeight;
   camera.setViewOffset(w, h, x, y, 1, 1);
   for (const m of meshes) m.material = m.userData.pick;
-  ground.visible = false;
+  flat.visible = false;
   renderer.setRenderTarget(pickTarget);
   renderer.setClearColor(0x000000, 0);
   renderer.clear();
@@ -180,7 +208,7 @@ function pick(x, y) {
   renderer.readRenderTargetPixels(pickTarget, 0, 0, 1, 1, pickPixel);
   renderer.setRenderTarget(null);
   renderer.setClearColor(BG, 1);
-  ground.visible = true;
+  flat.visible = true;
   for (const m of meshes) m.material = m.userData.draw;
   camera.clearViewOffset();
   return pickPixel[0] + pickPixel[1] * 256 + pickPixel[2] * 65536 - 1;
@@ -348,6 +376,8 @@ resize();
 let frame = 0;
 renderer.setAnimationLoop(now => {
   controls.update();
+  const dist = camera.position.distanceTo(controls.target);
+  uniforms.uFog.value.set(dist * 1.6, dist * 4);
   if (playing) {
     const t = Math.min(1, playT0 + (now - playStart) / DURATION);
     uniforms.uYear.value = Math.round(playYear(t));
