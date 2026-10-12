@@ -1,0 +1,109 @@
+"""Dates, floors, heights per pand.
+
+Date sources, in order of trust:
+  exact      BAG oorspronkelijkbouwjaar as recorded
+  faint      a pre-1800 round year in excess of what neighbouring years predict;
+             spread across its rounding step
+  estimated  BAG placeholder 1005; median year of the nearest dated neighbours
+"""
+import hashlib
+import geopandas as gpd
+import numpy as np
+import pandas as pd
+from scipy.spatial import cKDTree
+
+from .periods import period_index
+
+PLACEHOLDER = 1005
+FLAG_EXACT, FLAG_FAINT, FLAG_ESTIMATED = 0, 1, 2
+FLOORS_BAG3D, FLOORS_HEIGHT = 0, 1
+STOREY_M = 3.2
+
+
+def unit_hash(ids: pd.Series, salt: str) -> np.ndarray:
+    """Deterministic uniform [0,1) per id, so reruns give the same picture."""
+    return np.array([int(hashlib.md5((salt + i).encode()).hexdigest()[:8], 16) / 2**32 for i in ids])
+
+
+def rounding_step(y: int) -> int:
+    for step in (100, 50, 25, 10):
+        if y % step == 0:
+            return step
+    return 1
+
+
+def smooth_round_years(p: pd.DataFrame) -> pd.DataFrame:
+    """Before 1800 the register favours round years. Keep the expected count exact, fade the rest."""
+    y = p.year.astype(int)
+    counts = y.value_counts()
+    u = unit_hash(p.identificatie, "round")
+    u2 = unit_hash(p.identificatie, "spread")
+    for year, n in counts.items():
+        step = rounding_step(year)
+        if year >= 1800 or step == 1:
+            continue
+        near = [counts.get(year + d, 0) for d in range(-4, 5) if d and rounding_step(year + d) == 1]
+        expected = max(1.0, float(np.mean(near))) if near else 1.0
+        if n <= expected:
+            continue
+        idx = np.where(y.values == year)[0]
+        order = idx[np.argsort(u[idx])]
+        faint = order[int(round(expected)):]
+        half = step / 2
+        p.iloc[faint, p.columns.get_loc("year")] = np.round(year - half + u2[faint] * step).astype(int)
+        p.iloc[faint, p.columns.get_loc("date_flag")] = FLAG_FAINT
+    return p
+
+
+def estimate_placeholders(p: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    pts = np.c_[p.geometry.centroid.x, p.geometry.centroid.y]
+    known = p.date_flag.values != FLAG_ESTIMATED
+    tree = cKDTree(pts[known])
+    years = p.year.values[known]
+    todo = np.where(~known)[0]
+    dist, nn = tree.query(pts[todo], k=12, distance_upper_bound=1000)
+    for row, d, n in zip(todo, dist, nn):
+        ok = np.isfinite(d)
+        p.iat[row, p.columns.get_loc("year")] = int(np.median(years[n[ok]])) if ok.any() else 1900
+    return p
+
+
+def main():
+    p = gpd.read_parquet("data/panden.parquet")
+    q = gpd.read_parquet("data/parts.parquet")
+
+    p["year"] = p.oorspronkelijkbouwjaar.astype(int)
+    p["date_flag"] = np.where(p.year == PLACEHOLDER, FLAG_ESTIMATED, FLAG_EXACT).astype(np.uint8)
+    p = smooth_round_years(p)
+    p = estimate_placeholders(p)
+    p["period"] = p.year.map(period_index).astype(np.uint8)
+
+    # Height: tallest LoD1.3 part's 70th-percentile roof above ground.
+    top = q.groupby("identificatie").b3_h_70p.max()
+    p["h_roof"] = p.identificatie.map(top)
+    p["height"] = (p.h_roof - p.b3_h_maaiveld).clip(lower=2.5)
+
+    by_height = np.clip(np.round(p.height / STOREY_M), 1, 99)
+    bag3d = p.b3_bouwlagen
+    # b3_bouwlagen is capped at 5 and only modelled for simple roofs; trust it below the cap only.
+    use_bag3d = bag3d.notna() & (bag3d < 5)
+    p["floors"] = np.where(use_bag3d, bag3d, by_height).astype(np.uint8)
+    p["floors_src"] = np.where(use_bag3d, FLOORS_BAG3D, FLOORS_HEIGHT).astype(np.uint8)
+
+    p = p.sort_values("identificatie").reset_index(drop=True)
+    p.to_parquet("data/buildings.parquet")
+
+    stats = {
+        "buildings": len(p),
+        "exact": int((p.date_flag == FLAG_EXACT).sum()),
+        "faint_round": int((p.date_flag == FLAG_FAINT).sum()),
+        "estimated": int((p.date_flag == FLAG_ESTIMATED).sum()),
+        "floors_bag3d": int((p.floors_src == FLOORS_BAG3D).sum()),
+        "floors_height": int((p.floors_src == FLOORS_HEIGHT).sum()),
+    }
+    print(stats)
+    print(p.groupby("period").size().to_dict())
+
+
+if __name__ == "__main__":
+    main()

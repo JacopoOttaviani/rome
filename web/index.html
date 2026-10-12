@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Amsterdam, building by building</title>
+<link rel="stylesheet" href="styles.css">
+<script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
+</head>
+<body>
+<canvas id="scene"></canvas>
+<header class="top">
+  <div class="title">
+    <h1>Amsterdam</h1>
+    <p class="sub">Every building in the city, coloured by the year it was built.</p>
+  </div>
+  <nav class="modes" role="tablist">
+    <button data-mode="0" class="on">Period</button>
+    <button data-mode="1">Floors</button>
+  </nav>
+  <div class="counter"><span id="year">2025</span><small><span id="count">0</span> buildings</small></div>
+</header>
+<aside id="legend" class="legend"></aside>
+<div id="card" class="card" hidden></div>
+<footer class="timeline">
+  <button id="play" class="play" aria-label="Play">▶</button>
+  <canvas id="hist"></canvas>
+</footer>
+<div id="loading" class="loading">Loading <span id="progress">0</span>%</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>
