@@ -28,7 +28,7 @@ const attrs = new DataView(attrBuf);
 // English and Dutch. Data carries `<field>_nl` next to each English text; the interface strings are below.
 const NL_UI = {
   'Every building standing today, by age and historical context.': 'Elk gebouw dat er nu staat, naar leeftijd en historische context.',
-  'About': 'Over', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
+  'About': 'Over', 'Today': 'Nu', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
   'Wikidata records this building as their residence.': 'Volgens Wikidata woonde deze persoon hier.',
   'Wikidata records this building as their place of work.': 'Volgens Wikidata werkte deze persoon hier.',
   'Wikidata records this building as their birthplace.': 'Volgens Wikidata werd deze persoon hier geboren.',
@@ -851,7 +851,8 @@ function drawHist() {
   hctx.fillStyle = '#000';
   hctx.fillRect(xOf(Y) - 1, 0, 2, plotH);
   if (Yf >= T0) { hctx.fillStyle = '#5d6266'; hctx.fillRect(xOf(Yf) - 0.5, 0, 1, plotH); }
-  document.getElementById('year').textContent = Math.round(Y);
+  // at the end of the timeline the map shows the city as it stands, not a year that reads like a date
+  document.getElementById('year').textContent = Y >= config.yearMax ? t('Today') : Math.round(Y);
   document.getElementById('count').textContent = fmt(visibleCount());
 }
 
