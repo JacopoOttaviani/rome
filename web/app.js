@@ -876,7 +876,7 @@ function moveHandle(x) {
 let playing = false, playT0 = 0, playStart = 0;
 const playBtn = document.getElementById('play');
 const playIcon = document.getElementById('play-icon');
-const DURATION = 30000;
+const DURATION = (+new URLSearchParams(location.search).get('film') || 30) * 1000; // ?film=6 for a short film
 function playYear(t) {
   const k = 0.35; // share of time spent before 1850
   return t < k ? T0 + (1850 - T0) * (t / k) : 1850 + (config.yearMax - 1850) * ((t - k) / (1 - k));
@@ -968,4 +968,4 @@ renderer.setAnimationLoop(now => {
 });
 
 
-window.__dbg = { pick, uniforms, camera, controls, setLayer, layers, pinCard, showCard, building, labelGroup, labels };
+window.__dbg = { pick, uniforms, camera, controls, setLayer, layers, pinCard, showCard, building, labelGroup, labels, flyTo, startPlay, gidOf };
