@@ -114,7 +114,7 @@ await page.keyboard.press("Escape");
 await click(".back");
 await page.waitForTimeout(350);
 await page.evaluate(() => window.__dbg.flyTo(-300, 2600, null, 9000));
-await click('.layer[data-id="planned"]');
+await click('.layer[data-id="war"]');
 await page.waitForTimeout(2100);
 
 filming = false;
