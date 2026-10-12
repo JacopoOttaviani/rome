@@ -300,4 +300,13 @@ NL = {
         "Automatisch gevonden in de Nederlandstalige Wikipedia en gekoppeld aan het huidige adres; huisnummers zijn soms veranderd en sommige huizen zijn sindsdien herbouwd.",
     "Dutch Wikipedia, via Wikidata": "Nederlandstalige Wikipedia, via Wikidata",
     "Home of a well-known resident": "Woonhuis van een bekende bewoner",
+
+    # street art
+    "Street art": "Straatkunst", "1990–today": "1990–heden",
+    "Amsterdam paints its blank walls: portraits of Johan Cruijff and Ramses Shaffy, Eduardo Kobra's Anne Frank, and dozens of murals commissioned for whole housing blocks in Nieuw-West and Noord. Each work links to its article or its map entry.":
+        "Amsterdam beschildert zijn blinde muren: portretten van Johan Cruijff en Ramses Shaffy, de Anne Frank van Eduardo Kobra en tientallen muurschilderingen voor hele woonblokken in Nieuw-West en Noord. Elk werk linkt naar zijn artikel of kaartvermelding.",
+    "Murals and graffiti with a Wikidata item or an OpenStreetMap entry, placed on the nearest building.":
+        "Muurschilderingen en graffiti met een Wikidata-item of een vermelding in OpenStreetMap, op het dichtstbijzijnde gebouw geplaatst.",
+    "Wikidata, Wikipedia and OpenStreetMap": "Wikidata, Wikipedia en OpenStreetMap",
+    "Mural": "Muurschildering", "Graffiti and street art": "Graffiti en straatkunst",
 }

@@ -17,6 +17,7 @@ from functools import cache
 import geopandas as gpd
 import pandas as pd
 import shapely
+from shapely.geometry import Point
 from pyproj import Transformer
 
 LAYERS = []
@@ -399,6 +400,56 @@ def arcam():
         story_nl = f"{r.Project} van {r.Architect} {verdict_nl} in {r.Jaar}."
         for bag in near.bag:
             out[bag] = ("won" if won else "nominated", {"story": story, "story_nl": story_nl})
+    return out
+
+
+@layer(
+    id="streetart", section="The modern city", title="Street art", era="1990–today",
+    text=("Amsterdam paints its blank walls: portraits of Johan Cruijff and Ramses Shaffy, Eduardo Kobra's Anne Frank, "
+          "and dozens of murals commissioned for whole housing blocks in Nieuw-West and Noord. Each work links to "
+          "its article or its map entry."),
+    caveat="Murals and graffiti with a Wikidata item or an OpenStreetMap entry, placed on the nearest building.",
+    source=("Wikidata, Wikipedia and OpenStreetMap", "https://nl.wikipedia.org/wiki/Muurschildering"),
+    groups=[("mural", "Mural"), ("graffiti", "Graffiti and street art")],
+)
+def streetart():
+    b = buildings()
+    sidx = b.sindex
+    to_rd = Transformer.from_crs(4326, 28992, always_xy=True)
+    works = {}
+    for r in csv.DictReader(open("data/raw/wd_streetart.csv")):
+        if r["i"] in works or not r["coord"]:
+            continue
+        lon, lat = map(float, r["coord"][6:-1].split())
+        artist = r["artistLabel"] if r["artistLabel"] and not r["artistLabel"].startswith("http") else ""
+        works[r["i"]] = dict(name=r["iLabel"], artist=artist, year=r["inception"][:4], url=r["nl"] or r["i"],
+                             at=to_rd.transform(lon, lat), kind="mural")
+    osm = json.load(open("data/raw/osm_streetart.json"))["elements"]
+    for e in osm:
+        t = e["tags"]
+        qid = t.get("wikidata")
+        if qid and f"http://www.wikidata.org/entity/{qid}" in works:
+            continue
+        c = e.get("center") or e
+        kind = "mural" if t.get("artwork_type") == "mural" else "graffiti"
+        name = t.get("name") or ("Mural" if kind == "mural" else "Graffiti")
+        works[f"osm{e['id']}"] = dict(name=name, artist=t.get("artist_name", ""), year=t.get("start_date", "")[:4],
+                                       url=f"https://www.openstreetmap.org/{e['type']}/{e['id']}",
+                                       at=to_rd.transform(c["lon"], c["lat"]), kind=kind)
+    out = {}
+    for w in works.values():
+        pt = Point(w["at"])
+        near = b.iloc[sidx.query(pt.buffer(30), predicate="intersects")]
+        if near.empty:
+            continue
+        bag = near.iloc[near.distance(pt).argmin()].bag
+        by = f" by {w['artist']}" if w["artist"] else ""
+        by_nl = f" van {w['artist']}" if w["artist"] else ""
+        year = f", {w['year']}" if w["year"] else ""
+        what, what_nl = ("a mural", "muurschildering") if w["kind"] == "mural" else ("street art", "straatkunst")
+        out.setdefault(bag, (w["kind"], {"name": w["name"], "name_nl": w["name"], "source": w["url"],
+                                          "story": f"“{w['name']}”, {what}{by}{year}.",
+                                          "story_nl": f"“{w['name']}”, {what_nl}{by_nl}{year}."}))
     return out
 
 
