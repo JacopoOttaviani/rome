@@ -42,63 +42,43 @@
   <button class="about-close" aria-label="Close">×</button>
   <article lang="en" data-lang-block="en">
     <h2 id="about-title">About this map</h2>
-    <p>Every one of Amsterdam's 192,000 buildings, as they stand today, coloured by the year it was built, and set in the
-    historical contexts that shaped it: canals and warehouses, faith and charity, the planned city, war and occupation,
-    the people who lived there and the city's hidden corners.</p>
-    <p class="credit">Inspired by Sasha (Alexander) Bogachev and his project
-    <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>; the architecture of this
-    map, a data pipeline feeding a three.js city, follows his.</p>
-    <h3>Data, and when it was gathered</h3>
-    <p>All sources were downloaded on 12 October 2026, except the street photos, which load live.</p>
+    <p>All 192,000 buildings of Amsterdam, coloured by the year they were built and set in the history that shaped them.</p>
+    <p class="notice">A non-commercial project, made for curiosity and learning. Not for sale, no advertising, no tracking.</p>
+    <p class="credit">Inspired by Sasha Bogachev and his <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>.</p>
+    <h3>Data</h3>
+    <p>Downloaded on 12 October 2026; street photos load live.</p>
     <ul>
-      <li><b>Buildings, heights and years</b>: 3D BAG v2025.09.03 (TU Delft), built on the national building register BAG (Kadaster). CC BY 4.0.</li>
-      <li><b>Water, city boundary, addresses</b>: BGT and administrative boundaries via PDOK; street names from BAG via the City of Amsterdam API. CC0.</li>
-      <li><b>Monuments</b>: the national register (Rijksdienst voor het Cultureel Erfgoed, linked data) and the City of Amsterdam monuments register. CC0.</li>
-      <li><b>City datasets</b>: UNESCO zones, protected cityscapes, wartime impacts and incidents, wall art, the ARCAM architecture prize, the orde survey of cultural-historical value, housing association stock (AFWC), from api.data.amsterdam.nl and maps.amsterdam.nl. CC0, CC BY or open.</li>
-      <li><b>Energy labels</b>: RVO, via RIVM's Atlas Leefomgeving, monthly release of October 2026. Public domain.</li>
-      <li><b>Names, photos, stories</b>: Wikidata (CC0), Wikipedia (CC BY-SA; quotes and extracts link to their article) and Wikimedia Commons (each photo with its author and licence).</li>
-      <li><b>Street photos</b>: the City of Amsterdam's panoramas, CC BY 4.0, turned towards each building.</li>
+      <li>Buildings, heights, years: 3D BAG v2025.09.03 (TU Delft) on the Dutch building register BAG. CC BY 4.0.</li>
+      <li>Water, boundary, streets: BGT and BAG via PDOK and the City of Amsterdam. CC0.</li>
+      <li>Monuments, history layers: national monument register (RCE) and City of Amsterdam open data. CC0 or CC BY.</li>
+      <li>Energy labels: RVO via RIVM Atlas Leefomgeving. Public domain.</li>
+      <li>Names, photos, stories: Wikidata, Wikipedia, Wikimedia Commons; each photo credits its author and licence.</li>
+      <li>Street photos: City of Amsterdam panoramas. CC BY 4.0.</li>
     </ul>
-    <h3>How the dates were made</h3>
-    <p>BAG gives a construction year for every building, but not always a true one. 729 carry the placeholder 1005, and the old
-    centre holds ten times more buildings dated 1905 than the years around it; both are estimated from their dated neighbours.
-    Before 1800 the register favours round years, which are spread across their rounding step. Where the national monument
-    register dates a building earlier than BAG, which often records a rebuilding, the register wins: Westerkerk moves from 1761
-    to 1627. Approximate years are drawn paler and marked “c.” on the card.</p>
-    <h3>How the stories were checked</h3>
-    <p>Every hand-written story names the Wikipedia article it rests on; a script checks that the article contains its key
-    facts and the address, and places the address on its BAG building. The residents layer is found automatically in Dutch
-    Wikipedia biographies and may contain errors; house numbers have sometimes changed since.</p>
+    <h3>Method</h3>
+    <p>Placeholder and rounded years in BAG are estimated from dated neighbours; where the monument register dates a building
+    earlier, the register wins. Approximate years are paler and marked “c.”. Every hand-written story is checked against its
+    Wikipedia article; the residents layer is found automatically and may contain errors.</p>
   </article>
   <article lang="nl" data-lang-block="nl" hidden>
     <h2>Over deze kaart</h2>
-    <p>Alle 192.000 gebouwen van Amsterdam zoals ze er nu staan, gekleurd naar het jaar waarin ze werden gebouwd, en geplaatst
-    in de historische context die ze vormde: grachten en pakhuizen, geloof en liefdadigheid, de geplande stad, oorlog en
-    bezetting, de mensen die er woonden en de verborgen hoeken van de stad.</p>
-    <p class="credit">Geïnspireerd door Sasha (Alexander) Bogachev en zijn project
-    <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>; de opzet van deze kaart,
-    een datapijplijn die een three.js-stad voedt, volgt de zijne.</p>
-    <h3>Gegevens, en wanneer ze zijn verzameld</h3>
-    <p>Alle bronnen zijn op 12 oktober 2026 gedownload, behalve de straatbeelden, die live worden geladen.</p>
+    <p>Alle 192.000 gebouwen van Amsterdam, gekleurd naar hun bouwjaar en geplaatst in de geschiedenis die ze vormde.</p>
+    <p class="notice">Een niet-commercieel project, gemaakt uit nieuwsgierigheid en om van te leren. Niet te koop, geen advertenties, geen tracking.</p>
+    <p class="credit">Geïnspireerd door Sasha Bogachev en zijn <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>.</p>
+    <h3>Gegevens</h3>
+    <p>Gedownload op 12 oktober 2026; straatbeelden worden live geladen.</p>
     <ul>
-      <li><b>Gebouwen, hoogtes en bouwjaren</b>: 3D BAG v2025.09.03 (TU Delft), gebaseerd op de Basisregistratie Adressen en Gebouwen (Kadaster). CC BY 4.0.</li>
-      <li><b>Water, gemeentegrens, adressen</b>: BGT en bestuurlijke grenzen via PDOK; straatnamen uit de BAG via de API van de gemeente Amsterdam. CC0.</li>
-      <li><b>Monumenten</b>: het rijksmonumentenregister (Rijksdienst voor het Cultureel Erfgoed, linked data) en het monumentenregister van de gemeente Amsterdam. CC0.</li>
-      <li><b>Gemeentelijke datasets</b>: UNESCO-zones, beschermde stadsgezichten, inslagen en incidenten in oorlogstijd, wandkunst, de ARCAM-architectuurprijs, de orde-inventarisatie, corporatiebezit (AFWC), via api.data.amsterdam.nl en maps.amsterdam.nl. CC0, CC BY of open.</li>
-      <li><b>Energielabels</b>: RVO, via de Atlas Leefomgeving van het RIVM, maandelijkse uitgave van oktober 2026. Publiek domein.</li>
-      <li><b>Namen, foto's, verhalen</b>: Wikidata (CC0), Wikipedia (CC BY-SA; citaten en samenvattingen linken naar hun artikel) en Wikimedia Commons (elke foto met maker en licentie).</li>
-      <li><b>Straatbeelden</b>: de panorama's van de gemeente Amsterdam, CC BY 4.0, naar elk gebouw gedraaid.</li>
+      <li>Gebouwen, hoogtes, bouwjaren: 3D BAG v2025.09.03 (TU Delft) op basis van de BAG. CC BY 4.0.</li>
+      <li>Water, grens, straten: BGT en BAG via PDOK en de gemeente Amsterdam. CC0.</li>
+      <li>Monumenten, historische lagen: rijksmonumentenregister (RCE) en open data van de gemeente Amsterdam. CC0 of CC BY.</li>
+      <li>Energielabels: RVO via de Atlas Leefomgeving van het RIVM. Publiek domein.</li>
+      <li>Namen, foto's, verhalen: Wikidata, Wikipedia, Wikimedia Commons; bij elke foto staan maker en licentie.</li>
+      <li>Straatbeelden: panorama's van de gemeente Amsterdam. CC BY 4.0.</li>
     </ul>
-    <h3>Hoe de bouwjaren tot stand kwamen</h3>
-    <p>De BAG geeft elk gebouw een bouwjaar, maar niet altijd een echt. 729 gebouwen hebben de plaatshouder 1005, en in het oude
-    centrum staan tien keer meer gebouwen met 1905 dan met de jaren eromheen; beide worden geschat uit gedateerde buren. Vóór 1800
-    geeft het register vaak ronde jaartallen, die over hun afrondingsstap worden gespreid. Waar het rijksmonumentenregister een
-    gebouw eerder dateert dan de BAG, die vaak een verbouwing vastlegt, wint het register: de Westerkerk gaat van 1761 naar 1627.
-    Geschatte jaren zijn lichter gekleurd en op de kaart gemarkeerd met “c.”.</p>
-    <h3>Hoe de verhalen zijn gecontroleerd</h3>
-    <p>Elk zelfgeschreven verhaal noemt het Wikipedia-artikel waarop het rust; een script controleert dat het artikel de
-    belangrijkste feiten en het adres bevat, en plaatst het adres op het juiste BAG-gebouw. De laag met bewoners is automatisch
-    gevonden in Nederlandstalige Wikipedia-biografieën en kan fouten bevatten; huisnummers zijn soms veranderd.</p>
+    <h3>Methode</h3>
+    <p>Plaatshouders en afgeronde jaartallen in de BAG zijn geschat uit gedateerde buren; waar het monumentenregister een gebouw
+    eerder dateert, wint het register. Geschatte jaren zijn lichter en gemarkeerd met “c.”. Elk zelfgeschreven verhaal is
+    gecontroleerd aan zijn Wikipedia-artikel; de laag met bewoners is automatisch gevonden en kan fouten bevatten.</p>
   </article>
 </dialog>
 

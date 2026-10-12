@@ -212,7 +212,10 @@ const uniforms = {
   uYearFrom: { value: config.yearMin - 1 },
   uMode: { value: MODE.period },
   uPalette: { value: periods.map(p => col(p.color)) },
-  uMask: { value: periods.map(() => 1) },
+  uMask: { value: periods.map(() => 1) },        // animated towards maskTarget, so a period sinks and rises
+  uNow: { value: 0 },                              // seconds, for tiles dropping in as they load
+  uPlaying: { value: 0 },                          // while the film plays buildings fly in rather than grow
+  uRise: { value: 2 },                             // years a building takes to grow when scrubbing
   uGroupBit: { value: Array(MAX_GROUPS).fill(-1) },
   uGroupColor: { value: GROUP_COLORS.map(col) },
   uMaquette: { value: col(MAQUETTE) },
@@ -226,7 +229,7 @@ const uniforms = {
 const VERT = /* glsl */`
   in float bld;
   uniform sampler2D uAttr;
-  uniform float uYear, uYearFrom, uMode, uHover, uSelected;
+  uniform float uYear, uYearFrom, uMode, uHover, uSelected, uNow, uBorn, uPlaying, uRise;
   uniform vec3 uPalette[${periods.length}];
   uniform float uMask[${periods.length}];
   uniform int uGroupBit[${MAX_GROUPS}];
@@ -259,11 +262,25 @@ const VERT = /* glsl */`
     int period = pf % 16;
     int flag = pf / 16;
     vGid = a.w;
-    bool filtered = uMode < 1.5 && uMask[period] < 0.5;
-    if (year > uYear || filtered) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    float vis = uMode < 1.5 ? uMask[period] : 1.0;
+    float g = clamp((uYear - year + 1.0) / uRise, 0.0, 1.0);
+    g = g * g * (3.0 - 2.0 * g);
+    if (g <= 0.003 || vis <= 0.003) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 
+    // Entrances. Scrubbing grows a building out of its ground; the film, a legend click and a loading tile
+    // drop it in from its own side of the sky instead, the same side every time (seeded by its id).
     vec3 p = position;
-    p.y *= clamp((uYear - year + 1.0) / 2.0, 0.0, 1.0);
+    float seed = fract(sin(a.w * 12.9898) * 43758.5453);
+    float arrive = clamp((uNow - uBorn) / 0.9 - seed * 0.35, 0.0, 1.0);
+    float fly = max(1.0 - vis, 1.0 - arrive);
+    if (uPlaying > 0.5) fly = max(fly, 1.0 - g); else p.y *= g;
+    if (fly > 0.0) {
+      float e = fly * fly * fly;
+      float ang = seed * 6.2831853;
+      // positions are in decimetres: a few hundred metres sideways and up
+      p += vec3(cos(ang), 0.0, sin(ang)) * (1800.0 + 1600.0 * fract(seed * 7.13)) * e;
+      p.y += (2600.0 + 2400.0 * fract(seed * 3.71)) * e;
+    }
     vec3 c;
     if (uMode < 0.5) {
       c = uPalette[period];
@@ -313,10 +330,10 @@ const FRAG = /* glsl */`
   }
 `;
 
-function makeMaterial(tex, pick) {
+function makeMaterial(tex, pick, born) {
   return new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
-    uniforms: { ...uniforms, uAttr: { value: tex } },
+    uniforms: { ...uniforms, uAttr: { value: tex }, uBorn: born },
     vertexShader: VERT,
     fragmentShader: FRAG,
     defines: pick ? { PICK: 1 } : {},
@@ -340,8 +357,9 @@ function addTile(m) {
   data.set(m.attr);
   const tex = new THREE.DataTexture(data, ATTR_W * 2, rows, THREE.RGBAFormat, THREE.FloatType);
   tex.needsUpdate = true;
-  const mesh = new THREE.Mesh(g, makeMaterial(tex, false));
-  mesh.userData = { draw: mesh.material, pick: makeMaterial(tex, true) };
+  const born = { value: performance.now() / 1000 };
+  const mesh = new THREE.Mesh(g, makeMaterial(tex, false, born));
+  mesh.userData = { draw: mesh.material, pick: makeMaterial(tex, true, born) };
   mesh.scale.setScalar(0.1);
   mesh.position.set(m.origin[0], 0, m.origin[1]);
   scene.add(mesh);
@@ -627,6 +645,7 @@ let activeLayer = null;
 const SECTION_ORDER = ['Discover', 'Architecture', 'Trade and empire', 'Faith and community', 'Countries and communities',
   'The modern city', 'War and occupation'];
 const groupOn = {};
+let maskTarget = periods.map(() => 1);
 
 const ICON = {
   'Discover': '<circle cx="8" cy="8" r="6.2"/><path d="M10.6 5.4 9 9 5.4 10.6 7 7z"/>',
@@ -642,14 +661,14 @@ function renderPanel() {
   const mode = uniforms.uMode.value;
   if (mode === MODE.period) {
     panel.innerHTML = `<h2>${t('Built in')}</h2><div class="swatches">${periods.map((p, i) => `
-      <button class="swatch" data-i="${i}" aria-pressed="${!!uniforms.uMask.value[i]}">
+      <button class="swatch" data-i="${i}" aria-pressed="${!!maskTarget[i]}">
         <i style="background:${p.color}"></i><span>${t(p.label)}</span><span class="n">${fmt(totals[i])}</span>
       </button>`).join('')}</div>
       <p class="note">${t('Click a period to see it alone. Paler buildings have an approximate year.')}</p>`;
     panel.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
-      const i = +b.dataset.i, m = uniforms.uMask.value;
+      const i = +b.dataset.i, m = maskTarget;
       const solo = m.every((v, j) => (j === i) === !!v);
-      uniforms.uMask.value = periods.map((_, j) => (solo || j === i) ? 1 : 0);
+      maskTarget = periods.map((_, j) => (solo || j === i) ? 1 : 0);
       renderPanel(); drawHist();
     });
   } else if (mode === MODE.floors) {
@@ -768,7 +787,7 @@ function visibleCount() {
   const shown = layerGroupsShown();
   if (shown.length) return shown.reduce((n, g) => n + Object.entries(g.years).reduce((m, [y, c]) => m + (+y <= Y ? c : 0), 0), 0);
   let n = 0;
-  for (const [y, v] of years) if (y <= Y) v.forEach((c, i) => { if (uniforms.uMode.value !== MODE.period || uniforms.uMask.value[i]) n += c; });
+  for (const [y, v] of years) if (y <= Y) v.forEach((c, i) => { if (uniforms.uMode.value !== MODE.period || maskTarget[i]) n += c; });
   return n;
 }
 
@@ -807,7 +826,7 @@ function drawHist() {
       v.forEach((c, i) => {
         if (!c) return;
         const bh = Math.sqrt(c / yMax) * (plotH - 6);
-        const masked = uniforms.uMode.value === MODE.period && !uniforms.uMask.value[i];
+        const masked = uniforms.uMode.value === MODE.period && !maskTarget[i];
         bar(y, bh, top, periods[i].color, !masked && y <= Y);
         top -= bh;
       });
@@ -821,7 +840,7 @@ function drawHist() {
   hctx.fillStyle = '#000';
   hctx.fillRect(xOf(Y) - 1, 0, 2, plotH);
   if (Yf >= T0) { hctx.fillStyle = '#5d6266'; hctx.fillRect(xOf(Yf) - 0.5, 0, 1, plotH); }
-  document.getElementById('year').textContent = Y;
+  document.getElementById('year').textContent = Math.round(Y);
   document.getElementById('count').textContent = fmt(visibleCount());
 }
 
@@ -857,10 +876,14 @@ function startPlay() {
   playT0 = 0;
   while (playT0 < 1 && playYear(playT0) < uniforms.uYear.value) playT0 += 0.001;
   playIcon.setAttribute('d', 'M4 2.5h3v11H4zM9 2.5h3v11H9z');
+  uniforms.uPlaying.value = 1;
   playBtn.setAttribute('aria-label', t('Pause'));
 }
 function stopPlay() {
   playing = false;
+  uniforms.uPlaying.value = 0;
+  uniforms.uRise.value = 2;
+  uniforms.uYear.value = Math.round(uniforms.uYear.value);
   playIcon.setAttribute('d', 'M4 2.5v11l9-5.5z');
   playBtn.setAttribute('aria-label', "Play the city's growth");
 }
@@ -911,13 +934,19 @@ let frame = 0;
 renderer.setAnimationLoop(now => {
   frame++;
   stepFlight(now);
+  uniforms.uNow.value = now / 1000;
+  // ease the period mask towards its target: a period sinks out of the city and drops back in
+  const m = uniforms.uMask.value;
+  for (let i = 0; i < m.length; i++) m[i] += (maskTarget[i] - m[i]) * 0.12;
   controls.update();
   const dist = camera.position.distanceTo(controls.target);
   uniforms.uFog.value.set(dist * 1.6, dist * 4);
   if (frame % 6 === 0) updateLabels(dist);
   if (playing) {
     const t = Math.min(1, playT0 + (now - playStart) / DURATION);
-    uniforms.uYear.value = Math.round(playYear(t));
+    uniforms.uYear.value = playYear(t);
+    // A flight lasts about 0.8 s on screen whatever the film's pace: as many years as the film covers in that time.
+    uniforms.uRise.value = Math.max(2, (playYear(Math.min(1, t + 800 / DURATION)) - playYear(t)));
     if (t >= 1) stopPlay();
     drawHist();
   }
