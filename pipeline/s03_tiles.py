@@ -14,6 +14,7 @@ from pathlib import Path
 
 import geopandas as gpd
 import numpy as np
+import pandas as pd
 import shapely
 
 from .periods import PERIODS
@@ -109,11 +110,12 @@ def main():
 
     # Per-building lookup for hover: BAG id, height (dm), floors source, date flag.
     bag = b.identificatie.str.slice(-16).astype("int64").to_numpy()
-    attrs = np.zeros(len(b), dtype=[("bag", "<f8"), ("h", "<u2"), ("fsrc", "u1"), ("flag", "u1"), ("year", "<i2"), ("orig", "<i2")])
+    attrs = np.zeros(len(b), dtype=[("bag", "<f8"), ("h", "<u2"), ("fsrc", "u1"), ("flag", "u1"), ("year", "<i2"), ("orig", "<i2"), ("mon", "<u4")])
     attrs["bag"] = bag
     attrs["h"] = np.round(b.height.fillna(0) * 10).clip(0, 65535)
     attrs["fsrc"] = b.floors_src; attrs["flag"] = b.date_flag
     attrs["year"] = b.year; attrs["orig"] = b.oorspronkelijkbouwjaar.astype(int)
+    attrs["mon"] = pd.to_numeric(b.monument, errors="coerce").fillna(0).astype(int)
     (OUT / "attrs.bin").write_bytes(attrs.tobytes())
 
     years = b.year.to_numpy()
@@ -130,6 +132,7 @@ def main():
         tiles=index,
         stats=dict(buildings=len(b), exact=int((b.date_flag == 0).sum()),
                    faint=int((b.date_flag == 1).sum()), estimated=int((b.date_flag == 2).sum()),
+                   monument=int((b.date_flag == 3).sum()), monumentApprox=int((b.date_flag == 4).sum()),
                    floorsBag3d=int((b.floors_src == 0).sum()), floorsHeight=int((b.floors_src == 1).sum())),
     )
     (OUT / "amsterdam.json").write_text(json.dumps(config, ensure_ascii=False, separators=(",", ":")).replace('"from_"', '"from"'))

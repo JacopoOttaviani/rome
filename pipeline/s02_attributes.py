@@ -4,7 +4,11 @@ Date sources, in order of trust:
   exact      BAG oorspronkelijkbouwjaar as recorded
   faint      a pre-1800 round year in excess of what neighbouring years predict;
              spread across its rounding step
-  estimated  BAG placeholder 1005; median year of the nearest dated neighbours
+  estimated  BAG placeholder 1005, or an excess 1905 (a second, unofficial placeholder: the old centre
+             holds ~10x more 1905 buildings than 1904 or 1906); median year of the nearest dated neighbours
+  monument   a rijksmonument whose RCE date is earlier than BAG's (BAG often holds a rebuilding year);
+             when BAG is earlier, BAG stays: the RCE date often describes a later facade;
+             RCE year when it gives one, otherwise spread across its century or part of one
 """
 import hashlib
 import geopandas as gpd
@@ -12,10 +16,14 @@ import numpy as np
 import pandas as pd
 from scipy.spatial import cKDTree
 
+from .monuments import load as load_monuments
 from .periods import period_index
 
 PLACEHOLDER = 1005
-FLAG_EXACT, FLAG_FAINT, FLAG_ESTIMATED = 0, 1, 2
+FLAG_EXACT, FLAG_FAINT, FLAG_ESTIMATED, FLAG_MONUMENT, FLAG_MONUMENT_APPROX = 0, 1, 2, 3, 4
+LATER_MARGIN = 10
+SUSPECT_YEARS = (1905,)
+DAM = (121390.0, 487380.0)
 FLOORS_BAG3D, FLOORS_HEIGHT = 0, 1
 STOREY_M = 3.2
 
@@ -32,6 +40,26 @@ def rounding_step(y: int) -> int:
     return 1
 
 
+def apply_monuments(p: pd.DataFrame) -> pd.DataFrame:
+    """RCE wins where it contradicts BAG; where they agree, BAG's exact year stays."""
+    links = load_monuments()
+    bag = p.identificatie.str.slice(-16)
+    u = unit_hash(p.identificatie, "monument")
+    p["monument"] = bag.map(lambda b: links[b][2] if b in links else "")
+    agree = disagree = 0
+    for i in np.where(bag.isin(links))[0]:
+        lo, hi, _ = links[bag.iat[i]]
+        y = p.year.iat[i]
+        if p.date_flag.iat[i] == FLAG_EXACT and y <= hi + LATER_MARGIN:
+            agree += 1
+            continue
+        disagree += 1
+        p.iat[i, p.columns.get_loc("year")] = lo if lo == hi else int(round(lo + u[i] * (hi - lo)))
+        p.iat[i, p.columns.get_loc("date_flag")] = FLAG_MONUMENT if lo == hi else FLAG_MONUMENT_APPROX
+    print(f"monuments: {agree} kept BAG, {disagree} redated")
+    return p
+
+
 def smooth_round_years(p: pd.DataFrame) -> pd.DataFrame:
     """Before 1800 the register favours round years. Keep the expected count exact, fade the rest."""
     y = p.year.astype(int)
@@ -46,12 +74,27 @@ def smooth_round_years(p: pd.DataFrame) -> pd.DataFrame:
         expected = max(1.0, float(np.mean(near))) if near else 1.0
         if n <= expected:
             continue
-        idx = np.where(y.values == year)[0]
+        idx = np.where((y.values == year) & (p.date_flag.values == FLAG_EXACT))[0]
         order = idx[np.argsort(u[idx])]
         faint = order[int(round(expected)):]
         half = step / 2
         p.iloc[faint, p.columns.get_loc("year")] = np.round(year - half + u2[faint] * step).astype(int)
         p.iloc[faint, p.columns.get_loc("date_flag")] = FLAG_FAINT
+    return p
+
+
+def flag_suspect_years(p: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    """Keep as many buildings on a suspect year as the neighbouring years predict; the excess,
+    taken nearest the Dam first (where the placeholder concentrates), becomes estimated."""
+    y = p.year.values
+    exact = p.date_flag.values == FLAG_EXACT
+    dist = np.hypot(p.geometry.centroid.x - DAM[0], p.geometry.centroid.y - DAM[1]).values
+    for year in SUSPECT_YEARS:
+        expected = np.mean([((y == year + d) & exact).sum() for d in (-3, -2, -1, 1, 2, 3)])
+        idx = np.where((y == year) & exact)[0]
+        excess = idx[np.argsort(dist[idx])][: max(0, len(idx) - int(round(expected)))]
+        p.iloc[excess, p.columns.get_loc("date_flag")] = FLAG_ESTIMATED
+        print(f"{year}: {len(idx)} on record, {expected:.0f} expected, {len(excess)} estimated")
     return p
 
 
@@ -74,6 +117,8 @@ def main():
 
     p["year"] = p.oorspronkelijkbouwjaar.astype(int)
     p["date_flag"] = np.where(p.year == PLACEHOLDER, FLAG_ESTIMATED, FLAG_EXACT).astype(np.uint8)
+    p = apply_monuments(p)
+    p = flag_suspect_years(p)
     p = smooth_round_years(p)
     p = estimate_placeholders(p)
     p["period"] = p.year.map(period_index).astype(np.uint8)
@@ -98,6 +143,8 @@ def main():
         "exact": int((p.date_flag == FLAG_EXACT).sum()),
         "faint_round": int((p.date_flag == FLAG_FAINT).sum()),
         "estimated": int((p.date_flag == FLAG_ESTIMATED).sum()),
+        "monument": int((p.date_flag == FLAG_MONUMENT).sum()),
+        "monument_approx": int((p.date_flag == FLAG_MONUMENT_APPROX).sum()),
         "floors_bag3d": int((p.floors_src == FLOORS_BAG3D).sum()),
         "floors_height": int((p.floors_src == FLOORS_HEIGHT).sum()),
     }

@@ -106,7 +106,7 @@ const VERT = /* glsl */`
     vec3 p = position;
     p.y *= clamp((uYear - year + 1.0) / 2.0, 0.0, 1.0);
     vec3 col = uMode < 0.5 ? uPalette[period] : floorsRamp(a.z);
-    if (flag > 0) col = mix(col, vec3(0.55), 0.45);
+    if (flag == 1 || flag == 2 || flag == 4) col = mix(col, vec3(0.55), 0.45);
     if (year <= uYearFrom) col *= 0.22;
     if (vGid == uHover || vGid == uSelected) col = mix(col, vec3(1.0), 0.6);
     vColor = col;
@@ -219,7 +219,9 @@ const card = document.getElementById('card');
 const FLAG_NOTE = [
   'Year from the BAG register.',
   'The register gives a round year here, more often than neighbouring years would predict. Read it as “around then”; the map spreads it across the rounding step.',
-  'The register has no real year (placeholder 1005). Estimated from the nearest dated buildings.',
+  'The register has no real year here (placeholder 1005, or one of the surplus 1905s of the old centre). Estimated from the nearest dated buildings.',
+  'Year from the rijksmonument register (RCE), which dates the building earlier than BAG does.',
+  'Dated by the rijksmonument register (RCE) to a century or part of one; the map spreads it across that span.',
 ];
 function building(gid) {
   const o = gid * config.attrStride;
@@ -230,6 +232,7 @@ function building(gid) {
     flag: attrs.getUint8(o + 11),
     year: attrs.getInt16(o + 12, true),
     orig: attrs.getInt16(o + 14, true),
+    mon: attrs.getUint32(o + 16, true),
   };
 }
 function showCard(gid, x, y) {
@@ -240,10 +243,11 @@ function showCard(gid, x, y) {
   card.innerHTML = `
     <b>${b.flag ? '≈ ' : ''}${b.year}</b>
     <div class="row"><span>Period</span><span>${p.label}</span></div>
-    ${b.orig !== b.year ? `<div class="row"><span>Register says</span><span>${b.orig}</span></div>` : ''}
+    ${b.orig !== b.year ? `<div class="row"><span>BAG says</span><span>${b.orig}</span></div>` : ''}
     <div class="row"><span>Height</span><span>${b.height.toFixed(1)} m</span></div>
     <div class="row"><span>Floors from</span><span>${floors}</span></div>
     <div class="row"><span>BAG pand</span><span>${b.bag}</span></div>
+    ${b.mon ? `<div class="row"><span>Rijksmonument</span><span>${b.mon}</span></div>` : ''}
     <div class="note">${FLAG_NOTE[b.flag]}</div>`;
   card.hidden = false;
   const r = card.getBoundingClientRect();
