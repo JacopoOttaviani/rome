@@ -276,44 +276,102 @@ function building(gid) {
     year: attrs.getInt16(o + 12, true),
     orig: attrs.getInt16(o + 14, true),
     mon: attrs.getUint32(o + 16, true),
+    wk: attrs.getInt32(o + 28, true),
     groups: groupsByBit.filter(g => g.bit < 32 ? (lay0 >>> g.bit) & 1 : (lay1 >>> (g.bit - 32)) & 1),
   };
 }
 
 const periodOf = y => periods.find(p => y >= p.from && y <= p.to) || periods[0];
 
-// ---------- Hover card ----------
-const card = document.getElementById('card');
-function showCard(gid, x, y) {
-  if (gid < 0) { card.hidden = true; return; }
+// ---------- Building card ----------
+// Hover shows a light card that follows the pointer; a click pins it, with the article extract and links.
+let wiki = [];
+fetch('data/wiki.json').then(r => r.json()).then(w => { wiki = w; });
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>`;
+
+function cardHtml(gid, pinned) {
   const b = building(gid);
+  const w = b.wk >= 0 ? wiki[b.wk] : null;
+  const im = w?.image?.thumb ? w.image : null;
   const rows = [
     b.orig !== b.year && ['BAG says', b.orig],
     ['Height', `${b.height.toFixed(1)} m`],
     ['Storeys from', b.fsrc === 0 ? '3D BAG model' : 'height ÷ 3.2 m'],
+    w?.architects?.length && [w.architects.length > 1 ? 'Architects' : 'Architect', w.architects.map(esc).join(', ')],
+    w?.styles?.length && ['Style', w.styles.map(esc).join(', ')],
     b.mon && ['National monument', b.mon],
-    ['BAG building', b.bag],
   ].filter(Boolean);
-  card.innerHTML = `
+  const credit = im && (pinned
+    ? `Photo: ${link(im.page || im.thumb, im.artist || 'Wikimedia Commons')}${im.license ? `, ${im.licenseUrl ? link(im.licenseUrl, im.license) : esc(im.license)}` : ''}`
+    : `Photo: ${esc(im.artist || 'Wikimedia Commons')}${im.license ? `, ${esc(im.license)}` : ''}`);
+  const sources = [
+    w?.wiki?.url && link(w.wiki.url, w.wiki.lang === 'nl' ? 'Read on Dutch Wikipedia' : 'Read on Wikipedia'),
+    b.mon && link(`https://monumentenregister.cultureelerfgoed.nl/monumenten/${b.mon}`, 'Monument register'),
+    link(`https://bagviewer.kadaster.nl/lvbag/bag-viewer/?objectId=${b.bag}`, 'BAG register'),
+  ].filter(Boolean);
+  return `
+    ${pinned ? '<button class="card-close" aria-label="Close">×</button>' : ''}
+    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>${credit}</figcaption></figure>` : ''}
+    ${w?.label ? `<div class="name">${esc(w.label)}</div>` : ''}
     <div class="y">${b.flag && b.flag !== 3 ? 'c. ' : ''}${b.year}</div>
     <div class="p">${periodOf(b.year).label}</div>
+    ${pinned && w?.wiki?.extract ? `<p class="extract">${esc(w.wiki.extract)}</p>` : ''}
     <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
-    ${b.groups.length ? `<div class="in-layer">${b.groups.map(g => `${g.layer.title}: ${g.label}`).join('<br>')}</div>` : ''}
-    ${DATE_NOTE[b.flag] ? `<p class="why">${DATE_NOTE[b.flag]}</p>` : ''}`;
-  card.hidden = false;
-  const r = card.getBoundingClientRect();
-  card.style.left = Math.min(x + 18, innerWidth - r.width - 12) + 'px';
-  card.style.top = Math.max(12, Math.min(y + 18, innerHeight - r.height - 140)) + 'px';
+    ${b.groups.length ? `<div class="in-layer">${b.groups.map(g => `${esc(g.layer.title)}: ${esc(g.label)}`).join('<br>')}</div>` : ''}
+    ${DATE_NOTE[b.flag] ? `<p class="why">${DATE_NOTE[b.flag]}</p>` : ''}
+    ${pinned ? `<div class="sources">${sources.join('')}</div>` : (w?.wiki ? '<p class="hint">Click for the article</p>' : '')}`;
 }
 
-let pointer = null, dragging = false;
+const card = document.getElementById('card');
+let pinnedGid = -1;
+function placeCard(x, y) {
+  const r = card.getBoundingClientRect();
+  card.style.left = Math.max(12, Math.min(x + 18, innerWidth - r.width - 12)) + 'px';
+  card.style.top = Math.max(12, Math.min(y + 18, innerHeight - r.height - 12)) + 'px';
+}
+let hoverGid = -1;
+function showCard(gid, x, y) {
+  if (pinnedGid >= 0) return;
+  if (gid < 0) { card.hidden = true; hoverGid = -1; return; }
+  if (gid !== hoverGid || card.hidden) {
+    // Re-render only when the building changes, so the photo is not reloaded every frame.
+    hoverGid = gid;
+    card.innerHTML = cardHtml(gid, false);
+    card.classList.remove('pinned');
+    card.hidden = false;
+    card.querySelector('img')?.addEventListener('load', () => placeCard(...(pointer || [x, y])));
+  }
+  placeCard(x, y);
+}
+function pinCard(gid, x, y) {
+  pinnedGid = gid;
+  hoverGid = -1;
+  uniforms.uSelected.value = gid;
+  if (gid < 0) { card.hidden = true; card.classList.remove('pinned'); return; }
+  card.innerHTML = cardHtml(gid, true);
+  card.classList.add('pinned');
+  card.hidden = false;
+  card.querySelector('.card-close').onclick = () => pinCard(-1);
+  card.querySelector('img')?.addEventListener('load', () => placeCard(x, y));
+  placeCard(x, y);
+}
+addEventListener('keydown', e => { if (e.key === 'Escape') pinCard(-1); });
+
+// A click (not a drag) pins the building under the pointer, or clears the pin on empty ground.
+let pointer = null, dragging = false, downAt = null;
 canvas.addEventListener('pointermove', e => { pointer = [e.clientX, e.clientY]; });
-canvas.addEventListener('pointerdown', () => { dragging = true; card.hidden = true; });
+canvas.addEventListener('pointerdown', e => {
+  dragging = true; downAt = [e.clientX, e.clientY];
+  if (pinnedGid < 0) card.hidden = true;
+});
 canvas.addEventListener('pointerup', e => {
   dragging = false;
-  uniforms.uSelected.value = pick(e.clientX, e.clientY);
+  if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
+  const gid = pick(e.clientX, e.clientY);
+  pinCard(gid === pinnedGid ? -1 : gid, e.clientX, e.clientY);
 });
-canvas.addEventListener('pointerleave', () => { pointer = null; card.hidden = true; uniforms.uHover.value = -1; });
+canvas.addEventListener('pointerleave', () => { pointer = null; if (pinnedGid < 0) card.hidden = true; uniforms.uHover.value = -1; });
 
 // ---------- Panel ----------
 const panel = document.getElementById('panel');
@@ -531,4 +589,4 @@ renderer.setAnimationLoop(now => {
   renderer.render(scene, camera);
 });
 
-window.__dbg = { pick, uniforms, camera, controls, setLayer, layers };
+window.__dbg = { pick, uniforms, camera, controls, setLayer, layers, pinCard, showCard, building };

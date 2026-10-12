@@ -70,16 +70,26 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .layer-detail a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; font-size: 12px; }
 .caveat { color: var(--muted); font-size: 12px; }
 
-/* Hover card: white slip of paper. */
-.card { position: fixed; pointer-events: none; background: var(--paper); border-radius: 8px; padding: 12px 14px;
-  width: 260px; box-shadow: 0 6px 24px rgba(30, 40, 50, .14); font-size: 13px; }
+/* Building card: a white slip of paper. Follows the pointer on hover; pinned by a click, then it takes clicks. */
+.card { position: fixed; z-index: 10; pointer-events: none; background: var(--paper); border-radius: 8px; padding: 12px 14px;
+  width: 280px; max-height: calc(100vh - 24px); overflow-y: auto; box-shadow: 0 6px 24px rgba(30, 40, 50, .14); font-size: 13px; }
+.card.pinned { pointer-events: auto; width: 320px; outline: 2px solid var(--ink); }
+.card-close { position: absolute; top: 6px; right: 6px; width: 28px; height: 28px; border: 0; border-radius: 50%;
+  background: var(--paper); cursor: pointer; font-size: 18px; line-height: 1; z-index: 1; }
+.card .photo { margin: -12px -14px 10px; }
+.card .photo img { display: block; width: 100%; max-height: 220px; object-fit: cover; border-radius: 8px 8px 0 0; background: var(--sky); }
+.card .photo figcaption { font-size: 11px; color: var(--muted); padding: 4px 14px 0; }
+.card .photo a, .card .sources a { color: inherit; text-decoration-color: var(--red); text-underline-offset: 3px; }
+.card .name { font-weight: 700; font-size: 15px; line-height: 1.25; margin-bottom: 4px; padding-right: 24px; }
 .card .y { font-size: 28px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
 .card .p { color: var(--muted); margin: 2px 0 8px; }
+.card .extract { margin: 0 0 10px; line-height: 1.5; }
 .card dl { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; margin: 0; }
 .card dt { color: var(--muted); }
 .card dd { margin: 0; text-align: right; }
 .card .in-layer { margin-top: 8px; color: var(--red); font-weight: 500; }
-.card .why { color: var(--muted); font-size: 12px; margin: 8px 0 0; line-height: 1.45; }
+.card .why, .card .hint { color: var(--muted); font-size: 12px; margin: 8px 0 0; line-height: 1.45; }
+.card .sources { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--rule); }
 
 .timeline { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; gap: 14px;
   padding: 0 var(--gutter) calc(env(safe-area-inset-bottom, 0px) + 14px); pointer-events: none; }

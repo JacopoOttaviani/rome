@@ -130,13 +130,15 @@ def main():
 
     # Per-building lookup for hover: BAG id, height (dm), floors source, date flag.
     bag = b.identificatie.str.slice(-16).astype("int64").to_numpy()
-    attrs = np.zeros(len(b), dtype=[("bag", "<f8"), ("h", "<u2"), ("fsrc", "u1"), ("flag", "u1"), ("year", "<i2"), ("orig", "<i2"), ("mon", "<u4"), ("lay0", "<u4"), ("lay1", "<u4")])
+    attrs = np.zeros(len(b), dtype=[("bag", "<f8"), ("h", "<u2"), ("fsrc", "u1"), ("flag", "u1"), ("year", "<i2"), ("orig", "<i2"), ("mon", "<u4"), ("lay0", "<u4"), ("lay1", "<u4"), ("wk", "<i4")])
     attrs["bag"] = bag
     attrs["h"] = np.round(b.height.fillna(0) * 10).clip(0, 65535)
     attrs["fsrc"] = b.floors_src; attrs["flag"] = b.date_flag
     attrs["year"] = b.year; attrs["orig"] = b.oorspronkelijkbouwjaar.astype(int)
     attrs["mon"] = pd.to_numeric(b.monument, errors="coerce").fillna(0).astype(int)
     attrs["lay0"] = b.lay0; attrs["lay1"] = b.lay1
+    wk = pd.read_parquet("data/wiki_index.parquet").set_index("bag").wk
+    attrs["wk"] = b.identificatie.str.slice(-16).map(wk).fillna(-1).astype(int)
     (OUT / "attrs.bin").write_bytes(attrs.tobytes())
 
     years = b.year.to_numpy()
