@@ -1,19 +1,33 @@
 import * as THREE from 'three';
 import { MapControls } from './vendor/MapControls.js';
 
-const BG = 0x0d0f14;
+// Colours are authored in sRGB and drawn as they are.
+THREE.ColorManagement.enabled = false;
+
+const SKY = '#e4e8ea';
+const LAND = '#f4f3ef';
+const WATER = '#b5c7c6';
+const MAQUETTE = '#efeee9';
+const GROUP_COLORS = ['#ec0000', '#1f4e8c', '#d99a12', '#2e8b57', '#7b3fa0', '#00909a', '#8c5a2b', '#d6336c'];
+const MAX_GROUPS = GROUP_COLORS.length;
 const ATTR_W = 256;
 const WORKERS = Math.min(4, navigator.hardwareConcurrency || 2);
+const MODE = { period: 0, floors: 1, layers: 2 };
 
-const config = await (await fetch('data/amsterdam.json')).json();
-const attrs = new DataView(await (await fetch('data/attrs.bin')).arrayBuffer());
+const [config, layers, attrBuf] = await Promise.all([
+  fetch('data/amsterdam.json').then(r => r.json()),
+  fetch('data/layers.json').then(r => r.json()),
+  fetch('data/attrs.bin').then(r => r.arrayBuffer()),
+]);
+const attrs = new DataView(attrBuf);
 const periods = config.periods;
 
 // ---------- Scene ----------
 const canvas = document.getElementById('scene');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
-renderer.setClearColor(BG);
+renderer.setClearColor(SKY);
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(35, 1, 5, 60000);
 const controls = new MapControls(camera, canvas);
@@ -56,23 +70,26 @@ async function loadPolygons(url) {
 const flat = new THREE.Group();
 scene.add(flat);
 const [landGeo, waterGeo] = await Promise.all([loadPolygons('data/land.bin'), loadPolygons('data/water.bin')]);
-const land = new THREE.Mesh(landGeo, new THREE.MeshBasicMaterial({ color: 0x1d2028 }));
-const water = new THREE.Mesh(waterGeo, new THREE.MeshBasicMaterial({ color: 0x0f2c45 }));
+const land = new THREE.Mesh(landGeo, new THREE.MeshBasicMaterial({ color: LAND }));
+const water = new THREE.Mesh(waterGeo, new THREE.MeshBasicMaterial({ color: WATER }));
 land.position.y = -0.05;
 water.position.y = -0.4;
 flat.add(land, water);
 
 // ---------- Shared uniforms ----------
-const hex = c => new THREE.Color(c);
+const col = c => new THREE.Color(c);
 const uniforms = {
   uYear: { value: config.yearMax },
   uYearFrom: { value: config.yearMin - 1 },
-  uMode: { value: 0 },
-  uPalette: { value: periods.map(p => hex(p.color)) },
+  uMode: { value: MODE.period },
+  uPalette: { value: periods.map(p => col(p.color)) },
   uMask: { value: periods.map(() => 1) },
+  uGroupBit: { value: Array(MAX_GROUPS).fill(-1) },
+  uGroupColor: { value: GROUP_COLORS.map(col) },
+  uMaquette: { value: col(MAQUETTE) },
   uHover: { value: -1 },
   uSelected: { value: -1 },
-  uFogColor: { value: hex(BG) },
+  uFogColor: { value: col(SKY) },
   uFog: { value: new THREE.Vector2(9000, 26000) },
 };
 
@@ -82,35 +99,55 @@ const VERT = /* glsl */`
   uniform float uYear, uYearFrom, uMode, uHover, uSelected;
   uniform vec3 uPalette[${periods.length}];
   uniform float uMask[${periods.length}];
+  uniform int uGroupBit[${MAX_GROUPS}];
+  uniform vec3 uGroupColor[${MAX_GROUPS}];
+  uniform vec3 uMaquette;
   out vec3 vColor;
   out vec3 vWorld;
   out float vGid;
-  out float vRel;
 
   vec3 floorsRamp(float f) {
     float t = clamp(log(f) / log(40.0), 0.0, 1.0);
-    vec3 a = vec3(0.16, 0.20, 0.42), b = vec3(0.17, 0.55, 0.62), c = vec3(0.55, 0.80, 0.42), d = vec3(0.99, 0.85, 0.30);
+    vec3 a = vec3(0.86, 0.89, 0.90), b = vec3(0.49, 0.66, 0.75), c = vec3(0.17, 0.36, 0.55), d = vec3(0.05, 0.10, 0.25);
     return t < 0.33 ? mix(a, b, t / 0.33) : t < 0.66 ? mix(b, c, (t - 0.33) / 0.33) : mix(c, d, (t - 0.66) / 0.34);
+  }
+
+  bool hasBit(vec4 words, int bit) {
+    int w = bit / 16;
+    float v = w == 0 ? words.x : w == 1 ? words.y : w == 2 ? words.z : words.w;
+    return ((int(v + 0.5) >> (bit - w * 16)) & 1) == 1;
   }
 
   void main() {
     int i = int(bld + 0.5);
-    vec4 a = texelFetch(uAttr, ivec2(i % ${ATTR_W}, i / ${ATTR_W}), 0);
+    ivec2 tc = ivec2(2 * (i % ${ATTR_W}), i / ${ATTR_W});
+    vec4 a = texelFetch(uAttr, tc, 0);
+    vec4 lay = texelFetch(uAttr, tc + ivec2(1, 0), 0);
     float year = a.x;
     int pf = int(a.y + 0.5);
     int period = pf % 16;
     int flag = pf / 16;
     vGid = a.w;
-    if (year > uYear || uMask[period] < 0.5) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
+    bool filtered = uMode < 1.5 && uMask[period] < 0.5;
+    if (year > uYear || filtered) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
 
     vec3 p = position;
     p.y *= clamp((uYear - year + 1.0) / 2.0, 0.0, 1.0);
-    vec3 col = uMode < 0.5 ? uPalette[period] : floorsRamp(a.z);
-    if (flag == 1 || flag == 2 || flag == 4) col = mix(col, vec3(0.55), 0.45);
-    if (year <= uYearFrom) col *= 0.22;
-    if (vGid == uHover || vGid == uSelected) col = mix(col, vec3(1.0), 0.6);
-    vColor = col;
-    vRel = position.y;
+    vec3 c;
+    if (uMode < 0.5) {
+      c = uPalette[period];
+      if (flag == 1 || flag == 2 || flag == 4) c = mix(c, uMaquette, 0.45);
+    } else if (uMode < 1.5) {
+      c = floorsRamp(a.z);
+    } else {
+      c = uMaquette;
+      for (int g = 0; g < ${MAX_GROUPS}; g++) {
+        if (uGroupBit[g] >= 0 && hasBit(lay, uGroupBit[g])) { c = uGroupColor[g]; break; }
+      }
+    }
+    if (year <= uYearFrom) c = mix(c, uMaquette, 0.8);
+    if (vGid == uHover || vGid == uSelected) c = mix(c, vec3(0.0), 0.35);
+    vColor = c;
     vec4 w = modelMatrix * vec4(p, 1.0);
     vWorld = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
@@ -124,7 +161,6 @@ const FRAG = /* glsl */`
   in vec3 vColor;
   in vec3 vWorld;
   in float vGid;
-  in float vRel;
   out vec4 outColor;
   void main() {
     #ifdef PICK
@@ -132,10 +168,11 @@ const FRAG = /* glsl */`
       outColor = vec4(mod(id, 256.0), mod(floor(id / 256.0), 256.0), floor(id / 65536.0), 255.0) / 255.0;
     #else
       vec3 n = normalize(cross(dFdx(vWorld), dFdy(vWorld)));
-      float light = 0.62 + 0.38 * max(dot(n, normalize(vec3(-0.4, 0.8, 0.45))), 0.0);
-      if (n.y > 0.9) light = 1.02;
-      float base = mix(0.7, 1.0, clamp(vWorld.y / 15.0, 0.0, 1.0));
-      vec3 c = vColor * light * base;
+      // Low afternoon sun from the south-west, a soft sky from above.
+      float sun = max(dot(n, normalize(vec3(-0.55, 0.55, 0.62))), 0.0);
+      float light = n.y > 0.9 ? 1.04 : 0.66 + 0.34 * sun;
+      float foot = mix(0.82, 1.0, clamp(vWorld.y / 12.0, 0.0, 1.0));
+      vec3 c = vColor * light * foot;
       float d = length(vWorld - cameraPosition);
       c = mix(c, uFogColor, smoothstep(uFog.x, uFog.y, d));
       outColor = vec4(c, 1.0);
@@ -166,9 +203,9 @@ function addTile(m) {
   g.setAttribute('bld', new THREE.BufferAttribute(m.bld, 1));
   g.setIndex(new THREE.BufferAttribute(m.idx, 1));
   const rows = Math.ceil(m.nB / ATTR_W);
-  const data = new Float32Array(ATTR_W * rows * 4);
+  const data = new Float32Array(ATTR_W * 2 * rows * 4);
   data.set(m.attr);
-  const tex = new THREE.DataTexture(data, ATTR_W, rows, THREE.RGBAFormat, THREE.FloatType);
+  const tex = new THREE.DataTexture(data, ATTR_W * 2, rows, THREE.RGBAFormat, THREE.FloatType);
   tex.needsUpdate = true;
   const mesh = new THREE.Mesh(g, makeMaterial(tex, false));
   mesh.userData = { draw: mesh.material, pick: makeMaterial(tex, true) };
@@ -207,24 +244,26 @@ function pick(x, y) {
   renderer.render(scene, camera);
   renderer.readRenderTargetPixels(pickTarget, 0, 0, 1, 1, pickPixel);
   renderer.setRenderTarget(null);
-  renderer.setClearColor(BG, 1);
+  renderer.setClearColor(SKY, 1);
   flat.visible = true;
   for (const m of meshes) m.material = m.userData.draw;
   camera.clearViewOffset();
   return pickPixel[0] + pickPixel[1] * 256 + pickPixel[2] * 65536 - 1;
 }
 
-// ---------- Hover card ----------
-const card = document.getElementById('card');
-const FLAG_NOTE = [
-  'Year from the BAG register.',
-  'The register gives a round year here, more often than neighbouring years would predict. Read it as “around then”; the map spreads it across the rounding step.',
-  'The register has no real year here (placeholder 1005, or one of the surplus 1905s of the old centre). Estimated from the nearest dated buildings.',
-  'Year from the rijksmonument register (RCE), which dates the building earlier than BAG does.',
-  'Dated by the rijksmonument register (RCE) to a century or part of one; the map spreads it across that span.',
+// ---------- Building lookup ----------
+const DATE_NOTE = [
+  null,
+  'The register gives a round year here, more often than neighbouring years predict. Read it as “around then”.',
+  'The register has no real year (placeholder 1005, or one of the surplus 1905s of the old centre). Estimated from the nearest dated buildings.',
+  'Year from the register of national monuments, which dates the building earlier than BAG does.',
+  'Dated by the register of national monuments to a century or part of one; the map spreads it across that span.',
 ];
+const groupsByBit = layers.flatMap(L => L.groups.map(g => ({ ...g, layer: L })));
+
 function building(gid) {
   const o = gid * config.attrStride;
+  const lay0 = attrs.getUint32(o + 20, true), lay1 = attrs.getUint32(o + 24, true);
   return {
     bag: String(attrs.getFloat64(o, true)).padStart(16, '0'),
     height: attrs.getUint16(o + 8, true) / 10,
@@ -233,26 +272,34 @@ function building(gid) {
     year: attrs.getInt16(o + 12, true),
     orig: attrs.getInt16(o + 14, true),
     mon: attrs.getUint32(o + 16, true),
+    groups: groupsByBit.filter(g => g.bit < 32 ? (lay0 >>> g.bit) & 1 : (lay1 >>> (g.bit - 32)) & 1),
   };
 }
+
+const periodOf = y => periods.find(p => y >= p.from && y <= p.to) || periods[0];
+
+// ---------- Hover card ----------
+const card = document.getElementById('card');
 function showCard(gid, x, y) {
   if (gid < 0) { card.hidden = true; return; }
   const b = building(gid);
-  const p = periods.find(p => b.year >= p.from && b.year <= p.to) || periods[0];
-  const floors = b.fsrc === 0 ? 'BAG 3D model' : 'height ÷ 3.2 m';
+  const rows = [
+    b.orig !== b.year && ['BAG says', b.orig],
+    ['Height', `${b.height.toFixed(1)} m`],
+    ['Storeys from', b.fsrc === 0 ? '3D BAG model' : 'height ÷ 3.2 m'],
+    b.mon && ['National monument', b.mon],
+    ['BAG building', b.bag],
+  ].filter(Boolean);
   card.innerHTML = `
-    <b>${b.flag ? '≈ ' : ''}${b.year}</b>
-    <div class="row"><span>Period</span><span>${p.label}</span></div>
-    ${b.orig !== b.year ? `<div class="row"><span>BAG says</span><span>${b.orig}</span></div>` : ''}
-    <div class="row"><span>Height</span><span>${b.height.toFixed(1)} m</span></div>
-    <div class="row"><span>Floors from</span><span>${floors}</span></div>
-    <div class="row"><span>BAG pand</span><span>${b.bag}</span></div>
-    ${b.mon ? `<div class="row"><span>Rijksmonument</span><span>${b.mon}</span></div>` : ''}
-    <div class="note">${FLAG_NOTE[b.flag]}</div>`;
+    <div class="y">${b.flag && b.flag !== 3 ? 'c. ' : ''}${b.year}</div>
+    <div class="p">${periodOf(b.year).label}</div>
+    <dl>${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl>
+    ${b.groups.length ? `<div class="in-layer">${b.groups.map(g => `${g.layer.title}: ${g.label}`).join('<br>')}</div>` : ''}
+    ${DATE_NOTE[b.flag] ? `<p class="why">${DATE_NOTE[b.flag]}</p>` : ''}`;
   card.hidden = false;
   const r = card.getBoundingClientRect();
-  card.style.left = Math.min(x + 16, innerWidth - r.width - 8) + 'px';
-  card.style.top = Math.min(y + 16, innerHeight - r.height - 130) + 'px';
+  card.style.left = Math.min(x + 18, innerWidth - r.width - 12) + 'px';
+  card.style.top = Math.max(12, Math.min(y + 18, innerHeight - r.height - 140)) + 'px';
 }
 
 let pointer = null, dragging = false;
@@ -260,29 +307,75 @@ canvas.addEventListener('pointermove', e => { pointer = [e.clientX, e.clientY]; 
 canvas.addEventListener('pointerdown', () => { dragging = true; card.hidden = true; });
 canvas.addEventListener('pointerup', e => {
   dragging = false;
-  const gid = pick(e.clientX, e.clientY);
-  uniforms.uSelected.value = gid;
+  uniforms.uSelected.value = pick(e.clientX, e.clientY);
 });
 canvas.addEventListener('pointerleave', () => { pointer = null; card.hidden = true; uniforms.uHover.value = -1; });
 
-// ---------- Legend & modes ----------
-const legend = document.getElementById('legend');
+// ---------- Panel ----------
+const panel = document.getElementById('panel');
 const totals = periods.map(() => 0);
 for (const v of Object.values(config.histogram)) v.forEach((n, i) => totals[i] += n);
-periods.forEach((p, i) => {
-  const b = document.createElement('button');
-  b.innerHTML = `<i style="background:${p.color}"></i>${p.label}<span class="n">${totals[i].toLocaleString('en')}</span>`;
-  b.onclick = () => {
-    const solo = uniforms.uMask.value.every((m, j) => (j === i) === !!m);
-    uniforms.uMask.value = periods.map((_, j) => (solo || j === i) ? 1 : 0);
-    [...legend.children].forEach((el, j) => el.classList.toggle('off', !uniforms.uMask.value[j]));
-    drawHist();
-  };
-  legend.append(b);
-});
+const fmt = n => n.toLocaleString('en');
+let activeLayer = null;
+const groupOn = {};
+
+function renderPanel() {
+  const mode = uniforms.uMode.value;
+  if (mode === MODE.period) {
+    panel.innerHTML = `<h2>Built in</h2><div class="swatches">${periods.map((p, i) => `
+      <button class="swatch" data-i="${i}" aria-pressed="${!!uniforms.uMask.value[i]}">
+        <i style="background:${p.color}"></i><span>${p.label}</span><span class="n">${fmt(totals[i])}</span>
+      </button>`).join('')}</div>
+      <p class="note">Click a period to see it alone. Paler buildings have an approximate year.</p>`;
+    panel.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
+      const i = +b.dataset.i, m = uniforms.uMask.value;
+      const solo = m.every((v, j) => (j === i) === !!v);
+      uniforms.uMask.value = periods.map((_, j) => (solo || j === i) ? 1 : 0);
+      renderPanel(); drawHist();
+    });
+  } else if (mode === MODE.floors) {
+    panel.innerHTML = `<h2>Storeys</h2>
+      <div class="ramp" style="background:linear-gradient(90deg,#dbe3e6,#7da8bf,#2b5c8c,#0d1a40)"></div>
+      <div class="ramp-scale"><span>1</span><span>3</span><span>8</span><span>20</span><span>40+</span></div>
+      <p class="note">${fmt(config.stats.floorsBag3d)} buildings take their storeys from the 3D BAG model; the rest, ${fmt(config.stats.floorsHeight)}, from their height divided by 3.2 m.</p>`;
+  } else {
+    panel.innerHTML = `<h2>Layers</h2><div class="layers">${layers.map(L => `
+      <button class="layer" data-id="${L.id}" aria-pressed="${activeLayer === L}">
+        <b>${L.title}</b><span class="n">${fmt(L.count)}</span><span class="era">${L.era}</span>
+      </button>`).join('')}</div>${activeLayer ? layerDetail(activeLayer) : '<p class="note">Pick a layer to light up its buildings.</p>'}`;
+    panel.querySelectorAll('.layer').forEach(b => b.onclick = () => {
+      const L = layers.find(l => l.id === b.dataset.id);
+      setLayer(activeLayer === L ? null : L);
+    });
+    panel.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
+      groupOn[b.dataset.key] = !groupOn[b.dataset.key];
+      setLayer(activeLayer);
+    });
+  }
+}
+
+function layerDetail(L) {
+  const groups = L.groups.length > 1 ? `<div class="swatches">${L.groups.map((g, i) => `
+    <button class="swatch" data-key="${g.key}" aria-pressed="${groupOn[g.key] !== false}">
+      <i style="background:${GROUP_COLORS[i]}"></i><span>${g.label}</span><span class="n">${fmt(g.count)}</span>
+    </button>`).join('')}</div>` : '';
+  return `<div class="layer-detail"><p>${L.text}</p>${groups}
+    ${L.caveat ? `<p class="caveat">${L.caveat}</p>` : ''}
+    <a href="${L.source.url}" target="_blank" rel="noopener">${L.source.label}</a></div>`;
+}
+
+function setLayer(L) {
+  activeLayer = L;
+  const bits = Array(MAX_GROUPS).fill(-1);
+  if (L) L.groups.forEach((g, i) => { if (i < MAX_GROUPS && groupOn[g.key] !== false) bits[i] = g.bit; });
+  uniforms.uGroupBit.value = bits;
+  renderPanel(); drawHist();
+}
+
 document.querySelectorAll('.modes button').forEach(b => b.onclick = () => {
   uniforms.uMode.value = +b.dataset.mode;
-  document.querySelectorAll('.modes button').forEach(x => x.classList.toggle('on', x === b));
+  document.querySelectorAll('.modes button').forEach(x => x.setAttribute('aria-pressed', x === b));
+  renderPanel(); drawHist();
 });
 
 // ---------- Timeline ----------
@@ -294,9 +387,17 @@ const yMax = Math.max(...years.map(([, v]) => v.reduce((a, b) => a + b, 0)));
 const xOf = y => (y - T0) / (T1 - T0) * hist.clientWidth;
 const yearOf = x => Math.round(T0 + x / hist.clientWidth * (T1 - T0));
 
+function layerGroupsShown() {
+  if (uniforms.uMode.value !== MODE.layers || !activeLayer) return [];
+  return activeLayer.groups.map((g, i) => ({ ...g, color: GROUP_COLORS[i] })).filter(g => groupOn[g.key] !== false);
+}
+
 function visibleCount() {
+  const Y = uniforms.uYear.value;
+  const shown = layerGroupsShown();
+  if (shown.length) return shown.reduce((n, g) => n + Object.entries(g.years).reduce((m, [y, c]) => m + (+y <= Y ? c : 0), 0), 0);
   let n = 0;
-  for (const [y, v] of years) if (y <= uniforms.uYear.value) v.forEach((c, i) => { if (uniforms.uMask.value[i]) n += c; });
+  for (const [y, v] of years) if (y <= Y) v.forEach((c, i) => { if (uniforms.uMode.value !== MODE.period || uniforms.uMask.value[i]) n += c; });
   return n;
 }
 
@@ -305,30 +406,51 @@ function drawHist() {
   hist.width = w * dpr; hist.height = h * dpr;
   hctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   hctx.clearRect(0, 0, w, h);
-  const plotH = h - 18, bw = Math.max(1, w / (T1 - T0));
-  for (const [y, v] of years) {
-    let top = plotH;
-    v.forEach((c, i) => {
-      if (!c) return;
-      const bh = Math.sqrt(c / yMax) * (plotH - 6);
-      const on = uniforms.uMask.value[i] && y <= uniforms.uYear.value;
-      hctx.fillStyle = periods[i].color;
-      hctx.globalAlpha = on ? (y <= uniforms.uYearFrom.value ? 0.3 : 1) : 0.15;
-      hctx.fillRect(xOf(y), top - bh, bw, bh);
-      top -= bh;
-    });
+  const plotH = h - 20, bw = Math.max(1, w / (T1 - T0));
+  const Y = uniforms.uYear.value, Yf = uniforms.uYearFrom.value;
+  const shown = layerGroupsShown();
+  const bar = (y, bh, top, color, on) => {
+    hctx.fillStyle = color;
+    hctx.globalAlpha = on ? (y <= Yf ? 0.3 : 1) : 0.18;
+    hctx.fillRect(xOf(y), top - bh, bw, bh);
+  };
+  if (shown.length) {
+    // Layer mode: the city in grey behind, the layer's own buildings in its colours.
+    for (const [y, v] of years) {
+      const bh = Math.sqrt(v.reduce((a, b) => a + b, 0) / yMax) * (plotH - 6);
+      bar(y, bh, plotH, '#b9c0c4', false);
+    }
+    // Stack the groups per year; the stack's total height follows sqrt(total), split in proportion.
+    const total = {};
+    for (const g of shown) for (const [y, c] of Object.entries(g.years)) total[y] = (total[y] || 0) + c;
+    const lMax = Math.max(1, ...Object.values(total));
+    const stack = {};
+    for (const g of shown) for (const [ys, c] of Object.entries(g.years)) {
+      const y = +ys, full = Math.sqrt(total[ys] / lMax) * (plotH - 6) * 0.9, bh = full * c / total[ys];
+      bar(y, bh, plotH - (stack[y] || 0), g.color, y <= Y);
+      stack[y] = (stack[y] || 0) + bh;
+    }
+  } else {
+    for (const [y, v] of years) {
+      let top = plotH;
+      v.forEach((c, i) => {
+        if (!c) return;
+        const bh = Math.sqrt(c / yMax) * (plotH - 6);
+        const masked = uniforms.uMode.value === MODE.period && !uniforms.uMask.value[i];
+        bar(y, bh, top, periods[i].color, !masked && y <= Y);
+        top -= bh;
+      });
+    }
   }
   hctx.globalAlpha = 1;
-  hctx.fillStyle = '#8a8d96';
-  hctx.font = '10px ui-monospace, monospace';
-  for (let y = Math.ceil(T0 / 100) * 100; y <= T1; y += 100) hctx.fillText(y, Math.max(0, xOf(y) - 12), h - 4);
-  for (const [y, c] of [[uniforms.uYear.value, '#e8e6e1'], [uniforms.uYearFrom.value, '#8a8d96']]) {
-    if (y < T0) continue;
-    hctx.fillStyle = c;
-    hctx.fillRect(xOf(y) - 0.5, 0, 1.5, plotH);
-  }
-  document.getElementById('year').textContent = uniforms.uYear.value;
-  document.getElementById('count').textContent = visibleCount().toLocaleString('en');
+  hctx.fillStyle = '#5d6266';
+  hctx.font = '500 11px "Schibsted Grotesk", sans-serif';
+  for (let y = Math.ceil(T0 / 100) * 100; y <= T1; y += 100) hctx.fillText(y, Math.max(0, xOf(y) - 13), h - 4);
+  hctx.fillStyle = '#000';
+  hctx.fillRect(xOf(Y) - 1, 0, 2, plotH);
+  if (Yf >= T0) { hctx.fillStyle = '#5d6266'; hctx.fillRect(xOf(Yf) - 0.5, 0, 1, plotH); }
+  document.getElementById('year').textContent = Y;
+  document.getElementById('count').textContent = fmt(visibleCount());
 }
 
 let handle = null;
@@ -348,9 +470,10 @@ function moveHandle(x) {
   drawHist();
 }
 
-// Play: slow through the sparse centuries, then year by year through the dense ones.
+// Play: quickly through the sparse centuries, then slowly through the dense ones.
 let playing = false, playT0 = 0, playStart = 0;
 const playBtn = document.getElementById('play');
+const playIcon = document.getElementById('play-icon');
 const DURATION = 30000;
 function playYear(t) {
   const k = 0.35; // share of time spent before 1850
@@ -361,9 +484,14 @@ function startPlay() {
   if (uniforms.uYear.value >= config.yearMax) uniforms.uYear.value = T0;
   playT0 = 0;
   while (playT0 < 1 && playYear(playT0) < uniforms.uYear.value) playT0 += 0.001;
-  playBtn.textContent = '❚❚';
+  playIcon.setAttribute('d', 'M4 2.5h3v11H4zM9 2.5h3v11H9z');
+  playBtn.setAttribute('aria-label', 'Pause');
 }
-function stopPlay() { playing = false; playBtn.textContent = '▶'; }
+function stopPlay() {
+  playing = false;
+  playIcon.setAttribute('d', 'M4 2.5v11l9-5.5z');
+  playBtn.setAttribute('aria-label', "Play the city's growth");
+}
 playBtn.onclick = () => playing ? stopPlay() : startPlay();
 
 // ---------- Loop ----------
@@ -375,7 +503,9 @@ function resize() {
   drawHist();
 }
 addEventListener('resize', resize);
+renderPanel();
 resize();
+document.fonts?.ready.then(drawHist);
 
 let frame = 0;
 renderer.setAnimationLoop(now => {
@@ -396,4 +526,4 @@ renderer.setAnimationLoop(now => {
   renderer.render(scene, camera);
 });
 
-window.__dbg = { pick, uniforms, camera, controls };
+window.__dbg = { pick, uniforms, camera, controls, setLayer, layers };

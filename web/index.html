@@ -4,29 +4,52 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Amsterdam, building by building</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 <script type="importmap">{ "imports": { "three": "./vendor/three.module.js" } }</script>
 </head>
 <body>
-<canvas id="scene"></canvas>
-<header class="top">
-  <div class="title">
+<canvas id="scene" aria-label="3D map of Amsterdam's buildings"></canvas>
+<div class="veil veil-top" aria-hidden="true"></div>
+<div class="veil veil-bottom" aria-hidden="true"></div>
+
+<header class="masthead">
+  <svg class="xxx" viewBox="0 0 24 76" aria-hidden="true">
+    <g stroke="currentColor" stroke-width="5.2" stroke-linecap="square">
+      <path d="M4 4 20 20M20 4 4 20"/><path d="M4 30 20 46M20 30 4 46"/><path d="M4 56 20 72M20 56 4 72"/>
+    </g>
+  </svg>
+  <div>
     <h1>Amsterdam</h1>
-    <p class="sub">Every building in the city, coloured by the year it was built.</p>
+    <p class="dek">Every building standing today, by the year it was built.</p>
   </div>
-  <nav class="modes" role="tablist">
-    <button data-mode="0" class="on">Period</button>
-    <button data-mode="1">Floors</button>
-  </nav>
-  <div class="counter"><span id="year">2025</span><small><span id="count">0</span> buildings</small></div>
 </header>
-<aside id="legend" class="legend"></aside>
+
+<nav class="modes" aria-label="Colour the city by">
+  <button data-mode="0" aria-pressed="true">Period</button>
+  <button data-mode="1" aria-pressed="false">Floors</button>
+  <button data-mode="2" aria-pressed="false">Layers</button>
+</nav>
+
+<div class="tally" aria-live="polite">
+  <span id="year" class="tally-year">2025</span>
+  <span class="tally-count"><span id="count">0</span> buildings</span>
+</div>
+
+<aside id="panel" class="panel"></aside>
+
 <div id="card" class="card" hidden></div>
+
 <footer class="timeline">
-  <button id="play" class="play" aria-label="Play">▶</button>
-  <canvas id="hist"></canvas>
+  <button id="play" class="play" aria-label="Play the city's growth">
+    <svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg>
+  </button>
+  <canvas id="hist" aria-label="Buildings per year; drag to set the year"></canvas>
 </footer>
-<div id="loading" class="loading">Loading <span id="progress">0</span>%</div>
+
+<div id="loading" class="loading">Building the city <span id="progress">0</span>%</div>
 <script type="module" src="app.js"></script>
 </body>
 </html>

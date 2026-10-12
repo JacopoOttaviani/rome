@@ -10,7 +10,8 @@ function parse(buf) {
   return {
     nB, origin,
     gid: take(Uint32Array, nB), year: take(Int16Array, nB), flag: take(Uint8Array, nB),
-    period: take(Uint8Array, nB), floors: take(Uint8Array, nB), partStart: take(Uint32Array, nB + 1),
+    period: take(Uint8Array, nB), floors: take(Uint8Array, nB),
+    lay0: take(Uint32Array, nB), lay1: take(Uint32Array, nB), partStart: take(Uint32Array, nB + 1),
     height: take(Float32Array, nP), ringStart: take(Uint32Array, nP + 1),
     vertStart: take(Uint32Array, nR + 1), hole: take(Uint8Array, nR), xz: take(Int16Array, 2 * nV),
   };
@@ -54,9 +55,12 @@ function build(t) {
       }
     }
   }
-  // Per-building lookup: year, period + 16*flag, floors, global id.
-  const attr = new Float32Array(t.nB * 4);
-  for (let b = 0; b < t.nB; b++) attr.set([t.year[b], t.period[b] + 16 * t.flag[b], t.floors[b], t.gid[b]], b * 4);
+  // Per-building lookup, two texels: [year, period + 16*flag, floors, global id], [layer bits in four 16-bit words].
+  const attr = new Float32Array(t.nB * 8);
+  for (let b = 0; b < t.nB; b++) {
+    attr.set([t.year[b], t.period[b] + 16 * t.flag[b], t.floors[b], t.gid[b],
+      t.lay0[b] & 0xffff, t.lay0[b] >>> 16, t.lay1[b] & 0xffff, t.lay1[b] >>> 16], b * 8);
+  }
   return { pos: pos.subarray(0, v * 3), bld: bld.subarray(0, v), idx: idx.subarray(0, k), attr, origin: t.origin, nB: t.nB };
 }
 
