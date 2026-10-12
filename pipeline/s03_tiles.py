@@ -113,6 +113,21 @@ def main():
                           dist=round(float(np.hypot(cx, cz)))))
     index.sort(key=lambda t: t["dist"])
 
+    # Bundle tiles into a few packs, nearest the Dam first, so the city loads centre-out in few requests.
+    packs, n_packs = [], 8
+    per = -(-len(index) // n_packs)
+    for k in range(n_packs):
+        chunk = index[k * per:(k + 1) * per]
+        if not chunk:
+            break
+        name, offset, blob = f"pack{k}.bin", 0, bytearray()
+        for t in chunk:
+            data = (OUT / "tiles" / t["file"]).read_bytes()
+            t.update(pack=name, offset=offset, length=len(data))
+            blob += data; offset += len(data)
+        (OUT / name).write_bytes(blob)
+        packs.append(name)
+
     # Per-building lookup for hover: BAG id, height (dm), floors source, date flag.
     bag = b.identificatie.str.slice(-16).astype("int64").to_numpy()
     attrs = np.zeros(len(b), dtype=[("bag", "<f8"), ("h", "<u2"), ("fsrc", "u1"), ("flag", "u1"), ("year", "<i2"), ("orig", "<i2"), ("mon", "<u4"), ("lay0", "<u4"), ("lay1", "<u4")])
@@ -136,6 +151,7 @@ def main():
         histogram={str(k): v for k, v in sorted(hist.items())},
         attrStride=attrs.dtype.itemsize,
         tiles=index,
+        packs=packs,
         stats=dict(buildings=len(b), exact=int((b.date_flag == 0).sum()),
                    faint=int((b.date_flag == 1).sum()), estimated=int((b.date_flag == 2).sum()),
                    monument=int((b.date_flag == 3).sum()), monumentApprox=int((b.date_flag == 4).sum()),

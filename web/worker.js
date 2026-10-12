@@ -64,8 +64,7 @@ function build(t) {
   return { pos: pos.subarray(0, v * 3), bld: bld.subarray(0, v), idx: idx.subarray(0, k), attr, origin: t.origin, nB: t.nB };
 }
 
-self.onmessage = async ({ data: { url, id } }) => {
-  const buf = await (await fetch(url)).arrayBuffer();
+self.onmessage = ({ data: { buf, id } }) => {
   const m = build(parse(buf));
   self.postMessage({ id, ...m }, [m.pos.buffer, m.bld.buffer, m.idx.buffer, m.attr.buffer]);
 };

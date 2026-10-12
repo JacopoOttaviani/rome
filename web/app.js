@@ -1,4 +1,4 @@
-import * as THREE from 'three';
+import * as THREE from './vendor/three.module.js';
 import { MapControls } from './vendor/MapControls.js';
 
 // Colours are authored in sRGB and drawn as they are.
@@ -215,10 +215,14 @@ function addTile(m) {
   meshes.push(mesh);
 }
 
+// Tiles come in packs (see pipeline/s03_tiles.py); a tile is ready once its pack has arrived.
+const packs = Object.fromEntries(config.packs.map(name => [name, fetch(`data/${name}`).then(r => r.arrayBuffer())]));
 for (const w of pool) {
-  const next = () => {
+  const next = async () => {
     const t = queue.shift();
-    if (t) w.postMessage({ url: `data/tiles/${t.file}`, id: t.file });
+    if (!t) return;
+    const buf = (await packs[t.pack]).slice(t.offset, t.offset + t.length);
+    w.postMessage({ buf, id: t.file }, [buf]);
   };
   w.onmessage = ({ data }) => {
     addTile(data);
@@ -338,17 +342,18 @@ function renderPanel() {
       <div class="ramp" style="background:linear-gradient(90deg,#dbe3e6,#7da8bf,#2b5c8c,#0d1a40)"></div>
       <div class="ramp-scale"><span>1</span><span>3</span><span>8</span><span>20</span><span>40+</span></div>
       <p class="note">${fmt(config.stats.floorsBag3d)} buildings take their storeys from the 3D BAG model; the rest, ${fmt(config.stats.floorsHeight)}, from their height divided by 3.2 m.</p>`;
-  } else {
+  } else if (!activeLayer) {
     panel.innerHTML = `<h2>Layers</h2><div class="layers">${layers.map(L => `
-      <button class="layer" data-id="${L.id}" aria-pressed="${activeLayer === L}">
+      <button class="layer" data-id="${L.id}">
         <b>${L.title}</b><span class="n">${fmt(L.count)}</span><span class="era">${L.era}</span>
-      </button>`).join('')}</div>${activeLayer ? layerDetail(activeLayer) : '<p class="note">Pick a layer to light up its buildings.</p>'}`;
-    panel.querySelectorAll('.layer').forEach(b => b.onclick = () => {
-      const L = layers.find(l => l.id === b.dataset.id);
-      setLayer(activeLayer === L ? null : L);
-    });
+      </button>`).join('')}</div>`;
+    panel.querySelectorAll('.layer').forEach(b => b.onclick = () => setLayer(layers.find(l => l.id === b.dataset.id)));
+  } else {
+    panel.innerHTML = `<button class="back">All layers</button>
+      <h2 class="layer-title">${activeLayer.title}</h2><p class="layer-era">${activeLayer.era}</p>${layerDetail(activeLayer)}`;
+    panel.querySelector('.back').onclick = () => setLayer(null);
     panel.querySelectorAll('.swatch').forEach(b => b.onclick = () => {
-      groupOn[b.dataset.key] = !groupOn[b.dataset.key];
+      groupOn[b.dataset.bit] = groupOn[b.dataset.bit] === false;
       setLayer(activeLayer);
     });
   }
@@ -356,7 +361,7 @@ function renderPanel() {
 
 function layerDetail(L) {
   const groups = L.groups.length > 1 ? `<div class="swatches">${L.groups.map((g, i) => `
-    <button class="swatch" data-key="${g.key}" aria-pressed="${groupOn[g.key] !== false}">
+    <button class="swatch" data-bit="${g.bit}" aria-pressed="${groupOn[g.bit] !== false}">
       <i style="background:${GROUP_COLORS[i]}"></i><span>${g.label}</span><span class="n">${fmt(g.count)}</span>
     </button>`).join('')}</div>` : '';
   return `<div class="layer-detail"><p>${L.text}</p>${groups}
@@ -367,7 +372,7 @@ function layerDetail(L) {
 function setLayer(L) {
   activeLayer = L;
   const bits = Array(MAX_GROUPS).fill(-1);
-  if (L) L.groups.forEach((g, i) => { if (i < MAX_GROUPS && groupOn[g.key] !== false) bits[i] = g.bit; });
+  if (L) L.groups.forEach((g, i) => { if (i < MAX_GROUPS && groupOn[g.bit] !== false) bits[i] = g.bit; });
   uniforms.uGroupBit.value = bits;
   renderPanel(); drawHist();
 }
@@ -389,7 +394,7 @@ const yearOf = x => Math.round(T0 + x / hist.clientWidth * (T1 - T0));
 
 function layerGroupsShown() {
   if (uniforms.uMode.value !== MODE.layers || !activeLayer) return [];
-  return activeLayer.groups.map((g, i) => ({ ...g, color: GROUP_COLORS[i] })).filter(g => groupOn[g.key] !== false);
+  return activeLayer.groups.map((g, i) => ({ ...g, color: GROUP_COLORS[i] })).filter(g => groupOn[g.bit] !== false);
 }
 
 function visibleCount() {
