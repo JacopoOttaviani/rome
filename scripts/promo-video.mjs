@@ -109,7 +109,7 @@ const [cx, cy] = await page.evaluate(([w, h]) => {
 }, [W, H]);
 await page.mouse.move(cx, cy, { steps: 14 });
 await page.mouse.down(); await page.waitForTimeout(80); await page.mouse.up();
-await page.waitForTimeout(1700);
+await page.waitForTimeout(2500); // long enough to see the photo and read the name
 
 // 4. close the card, back to the list, a second context layer over the whole city
 await page.keyboard.press("Escape");
