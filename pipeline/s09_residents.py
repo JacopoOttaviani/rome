@@ -203,7 +203,9 @@ def main():
             if surname not in sentence.lower() and not SELF.match(sentence.strip()):
                 continue
             quote = re.sub(r"⟦[^⟧]*⟧", "", sentence).strip()[:400]
-            for t in re.findall(r"⟦([^⟧]*)⟧", sentence):
+            # a church named in a sentence about a burial is where they lie, not where they lived
+            buried = re.search(r"\b(begraven|bijgezet|begraafplaats|graf|grafkelder)\b", sentence, re.I)
+            for t in ([] if buried else re.findall(r"⟦([^⟧]*)⟧", sentence)):
                 for bag in BUILDING_ARTICLES[t]:
                     if ("article", bag) not in seen:
                         seen.add(("article", bag))

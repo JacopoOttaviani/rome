@@ -28,7 +28,7 @@ const attrs = new DataView(attrBuf);
 // English and Dutch. Data carries `<field>_nl` next to each English text; the interface strings are below.
 const NL_UI = {
   'Every building standing today, by age and historical context.': 'Elk gebouw dat er nu staat, naar leeftijd en historische context.',
-  'About': 'Over', 'Today': 'Nu', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
+  'About': 'Over', 'Did you know': 'Wist je dat', 'Today': 'Nu', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
   'Wikidata records this building as their residence.': 'Volgens Wikidata woonde deze persoon hier.',
   'Wikidata records this building as their place of work.': 'Volgens Wikidata werkte deze persoon hier.',
   'Wikidata records this building as their birthplace.': 'Volgens Wikidata werd deze persoon hier geboren.',
@@ -453,8 +453,9 @@ const periodOf = y => periods.find(p => y >= p.from && y <= p.to) || periods[0];
 
 // ---------- Building card ----------
 // Hover shows a light card that follows the pointer; a click pins it, with the article extract and links.
-let wiki = [];
+let wiki = [], didYouKnow = {};
 fetch('data/wiki.json').then(r => r.json()).then(w => { wiki = w; });
+fetch('data/facts.json').then(r => r.json()).then(f => { didYouKnow = f; }); // 'Did you know', checked in s11_facts
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>`;
 
@@ -534,6 +535,7 @@ function cardHtml(gid, pinned) {
         <span class="period"><i style="background:${period.color}"></i>${esc(t(period.label))}</span></div>
     </header>
     ${pinned && wikiOf(w)?.extract ? `<section><p class="extract">${esc(wikiOf(w).extract)}</p></section>` : ''}
+    ${didYouKnow[b.bag] ? `<section class="fact"><h4>${t('Did you know')}</h4><p>${esc(LANG === 'nl' ? didYouKnow[b.bag].nl : didYouKnow[b.bag].en)}${pinned ? ` ${link(didYouKnow[b.bag].source, t('Source'))}` : ''}</p></section>` : ''}
     ${residentsHtml(b, pinned)}
     ${inLayers ? `<section><h4>${t('In layers')}</h4><ul class="chips">${inLayers}</ul></section>` : ''}
     <section><dl>${facts.map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join('')}</dl></section>
