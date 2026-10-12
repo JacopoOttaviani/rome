@@ -617,12 +617,12 @@ function gidOf(bag) {
   return bagIndex.get(bag) ?? -1;
 }
 let flight = null;
-function flyTo(x, z, done) {
+function flyTo(x, z, done, distance = 520) {
   const dir = camera.position.clone().sub(controls.target).normalize();
   if (dir.y < 0.45) { dir.y = 0.45; dir.normalize(); }
   const target = new THREE.Vector3(x, 0, z);
   flight = { t0: performance.now(), dur: 1400, fromT: controls.target.clone(), toT: target,
-    fromP: camera.position.clone(), toP: target.clone().add(dir.multiplyScalar(520)), done };
+    fromP: camera.position.clone(), toP: target.clone().add(dir.multiplyScalar(distance)), done };
 }
 function stepFlight(now) {
   if (!flight) return;
