@@ -215,7 +215,8 @@ const uniforms = {
   uMask: { value: periods.map(() => 1) },
   uNow: { value: 0 },                              // seconds, for tiles dropping in as they load
   uPlaying: { value: 0 },                          // while the film plays buildings fly in rather than grow
-  uRise: { value: 0.01 },                          // years a building's entrance spans; only the film widens it
+  uRise: { value: 0.01 },
+  uLayerAt: { value: -10 },                        // seconds; when a context layer opened, its buildings rise                          // years a building's entrance spans; only the film widens it
   uGroupBit: { value: Array(MAX_GROUPS).fill(-1) },
   uGroupColor: { value: GROUP_COLORS.map(col) },
   uMaquette: { value: col(MAQUETTE) },
@@ -229,7 +230,7 @@ const uniforms = {
 const VERT = /* glsl */`
   in float bld;
   uniform sampler2D uAttr;
-  uniform float uYear, uYearFrom, uMode, uHover, uSelected, uNow, uBorn, uPlaying, uRise;
+  uniform float uYear, uYearFrom, uMode, uHover, uSelected, uNow, uBorn, uPlaying, uRise, uLayerAt;
   uniform vec3 uPalette[${periods.length}];
   uniform float uMask[${periods.length}];
   uniform int uGroupBit[${MAX_GROUPS}];
@@ -292,7 +293,14 @@ const VERT = /* glsl */`
     } else {
       c = uMaquette;
       for (int g = 0; g < ${MAX_GROUPS}; g++) {
-        if (uGroupBit[g] >= 0 && hasBit(lay, uGroupBit[g])) { c = uGroupColor[g]; break; }
+        if (uGroupBit[g] >= 0 && hasBit(lay, uGroupBit[g])) {
+          c = uGroupColor[g];
+          // Opening a layer: its buildings rise out of the ground in a quick wave, overshoot a little, settle.
+          float k = clamp((uNow - uLayerAt) / 0.55 - seed * 0.6, 0.0, 1.0);
+          float q = k - 1.0;
+          p.y *= 1.0 + 2.70158 * q * q * q + 1.70158 * q * q;
+          break;
+        }
       }
     }
     if (year <= uYearFrom) c = mix(c, uMaquette, 0.8);
@@ -752,6 +760,7 @@ function layerDetail(L) {
 }
 
 function setLayer(L) {
+  if (L) uniforms.uLayerAt.value = performance.now() / 1000;
   activeLayer = L;
   const bits = Array(MAX_GROUPS).fill(-1);
   if (L) L.groups.forEach((g, i) => { if (i < MAX_GROUPS && groupOn[g.bit] !== false) bits[i] = g.bit; });
@@ -765,6 +774,7 @@ document.querySelectorAll('.modes button').forEach(b => b.onclick = () => {
   const bits = Array(MAX_GROUPS).fill(-1);
   if (activeLayer) activeLayer.groups.forEach((g, i) => { if (groupOn[g.bit] !== false) bits[i] = g.bit; });
   uniforms.uGroupBit.value = bits;
+  if (uniforms.uMode.value === MODE.layers && activeLayer) uniforms.uLayerAt.value = performance.now() / 1000;
   if (!phone.matches) setCollapsed(false);
   renderPanel(); drawHist();
 });
