@@ -28,13 +28,15 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s08_curated` | Checks hand-written stories against Wikipedia and geocodes them |
 | `s09_residents` | Finds addresses of well-known residents in Dutch Wikipedia |
 | `s10_commons` | Finds more building photos on Commons by address in the file name |
+| `s11_facts` | Checks the 'Did you know' facts against Wikipedia |
+| `s12_archive` | Up to six archive photos per building from the Stadsarchief beeldbank, via the Amsterdam Time Machine knowledge graph |
 
 ## Run it
 
 ```bash
 uv sync
 # raw inputs: see the docstrings of s00_* and s01_load (3D BAG tiles, PDOK boundary, RCE and Wikidata exports)
-for s in s01_load s02_attributes s05_layers s03_tiles s04_water s06_wiki s07_labels; do uv run python -m pipeline.$s; done
+for s in s01_load s02_attributes s05_layers s03_tiles s04_water s06_wiki s07_labels s12_archive; do uv run python -m pipeline.$s; done
 python3 -m http.server 8642 --directory web
 ```
 
@@ -55,4 +57,5 @@ Raw downloads (`data/`) and generated output (`web/data/`) are not in the reposi
 
 Code: MIT (see [LICENSE](LICENSE)). Data keeps the licence of its source: 3D BAG CC BY 4.0; BAG, BGT, RCE, Wikidata and
 most City of Amsterdam data CC0; some city datasets and the street panoramas CC BY 4.0; Wikipedia text CC BY-SA;
-Wikimedia Commons photos each under their own licence, credited in the app.
+Wikimedia Commons photos each under their own licence, credited in the app. Stadsarchief Amsterdam photos are
+shown from the archive's image server and link to their records; the app stores only their identifiers.

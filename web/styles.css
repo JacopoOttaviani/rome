@@ -118,6 +118,19 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .card .photo { margin: 0; }
 .card .photo img { display: block; width: 100%; max-height: 210px; object-fit: cover; border-radius: 10px 10px 0 0; background: var(--sky); }
 .card .photo figcaption { font-size: 11px; color: var(--muted); padding: 5px 16px 0; }
+/* Photos through the years: today's first, then the archive; the year sits on the picture, tabs below jump. */
+.card .photo .frame { position: relative; }
+.card .photo .year { position: absolute; left: 10px; bottom: 8px; background: var(--ink); color: var(--paper);
+  font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+.card .photo .prev, .card .photo .next { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px;
+  border: 0; border-radius: 50%; background: rgba(255,255,255,.92); cursor: pointer; font-size: 20px; line-height: 1; }
+.card .photo .prev { left: 8px; } .card .photo .next { right: 8px; }
+.card .photo .years { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 16px 0; }
+.card .photo .years button { border: 1px solid #d6d9dc; background: none; border-radius: 4px; padding: 2px 7px; font: inherit;
+  font-size: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.card .photo .years button[aria-current] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.card .photo button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.card .more-photos { font-size: 11px; margin: 3px 16px 0; color: var(--ink); }
 .card a { color: inherit; text-decoration-color: var(--red); text-underline-offset: 3px; }
 .card-head { padding: 12px 16px 10px; }
 .card-head h3 { margin: 0 0 6px; font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; padding-right: 26px; }
@@ -220,3 +233,4 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 @media (max-width: 720px) { .about article { padding: 20px 18px 24px; } }
 .contribute { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12px; }
 .contribute a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; }
+.card .photo button[disabled] { opacity: .35; cursor: default; }

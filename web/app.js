@@ -28,7 +28,7 @@ const attrs = new DataView(attrBuf);
 // English and Dutch. Data carries `<field>_nl` next to each English text; the interface strings are below.
 const NL_UI = {
   'Every building standing today, by age and historical context.': 'Elk gebouw dat er nu staat, naar leeftijd en historische context.',
-  'About': 'Over', 'Did you know': 'Wist je dat', 'Today': 'Nu', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
+  'About': 'Over', 'Did you know': 'Wist je dat', 'Today': 'Nu', 'Earlier': 'Eerder', 'Later': 'Later', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
   'Wikidata records this building as their residence.': 'Volgens Wikidata woonde deze persoon hier.',
   'Wikidata records this building as their place of work.': 'Volgens Wikidata werkte deze persoon hier.',
   'Wikidata records this building as their birthplace.': 'Volgens Wikidata werd deze persoon hier geboren.',
@@ -434,6 +434,7 @@ function building(gid) {
   const o = gid * config.attrStride;
   const lay0 = attrs.getUint32(o + 20, true), lay1 = attrs.getUint32(o + 24, true);
   return {
+    gid,
     bag: String(attrs.getFloat64(o, true)).padStart(16, '0'),
     height: attrs.getUint16(o + 8, true) / 10,
     fsrc: attrs.getUint8(o + 10),
@@ -496,6 +497,81 @@ function residentsHtml(b, pinned) {
     ${!pinned && n.people.length > 3 ? `<p class="why">${LANG === 'nl' ? 'en' : 'and'} ${n.people.length - 3} ${LANG === 'nl' ? 'meer' : 'more'}</p>` : ''}</section>`;
 }
 
+// ---------- Photos through the years ----------
+// Archive pictures from the Stadsarchief beeldbank (s12_archive), in 64 shards keyed by a CRC-32 of the BAG id.
+const CRC = Array.from({ length: 256 }, (_, n) => { for (let k = 0; k < 8; k++) n = n & 1 ? 0xEDB88320 ^ (n >>> 1) : n >>> 1; return n >>> 0; });
+const crc32 = s => { let c = ~0; for (const ch of s) c = CRC[(c ^ ch.charCodeAt(0)) & 255] ^ (c >>> 8); return (~c) >>> 0; };
+const archiveShards = {};
+function archiveOf(bag, then) {
+  const n = String(crc32(bag) % 64).padStart(2, '0');
+  if (archiveShards[n] === undefined) {
+    archiveShards[n] = null;
+    fetch(`data/archive/${n}.json`).then(r => r.json()).then(d => { archiveShards[n] = d; then(); }).catch(() => {});
+  }
+  return archiveShards[n]?.[bag] || [];
+}
+const KIND_EN = { bouwtekening: 'building drawing', tekening: 'drawing', prent: 'print', prentbriefkaart: 'picture postcard' };
+let slides = [], slide = 0;
+// Oldest archive picture first, today's photo (Wikimedia, or the street panorama) last; the card opens on today.
+function photosHtml(b, im, credit, pinned) {
+  const archive = archiveOf(b.bag, () => refreshCard(b.gid));
+  slides = [...archive.map(a => ({
+    src: `https://images.memorix.nl/ams/thumb/640x480/${a.t}.jpg`, label: String(a.y),
+    credit: `${a.k ? esc(LANG === 'nl' ? a.k : KIND_EN[a.k] || a.k) + ', ' : ''}${a.y}${a.m ? ', ' + esc(a.m) : ''}, ${pinned
+      ? link(`https://archief.amsterdam/beeldbank/detail/${a.r}`, 'Stadsarchief Amsterdam') : 'Stadsarchief Amsterdam'}`,
+  })), im ? { src: im.thumb, label: t('Today'), credit: `${t('Photo')}: ${credit}` }
+    : { sv: streetView(b), label: t('Today'), credit: pinned ? svCredit() : `${t('Street view')}: Gemeente Amsterdam, CC BY 4.0` }];
+  slide = slides.length - 1;
+  const s = slides[slide];
+  const span = archive.length && `${archive[0].y}${archive.length > 1 ? '–' + archive.at(-1).y : ''}`;
+  const more = !archive.length || pinned ? '' : `<p class="more-photos">${LANG === 'nl'
+    ? `+ ${archive.length} archieffoto${archive.length > 1 ? "'s" : ''}, ${span}. Klik om te bladeren`
+    : `+ ${archive.length} archive photo${archive.length > 1 ? 's' : ''}, ${span}. Click to browse`}</p>`;
+  return `<figure class="photo${s.sv ? ' sv' : ''}"><div class="frame">${s.sv ? `<img data-sv="${esc(s.sv)}" alt="">` : `<img src="${esc(s.src)}" alt="">`}
+    ${pinned && slides.length > 1 ? `<button class="prev" aria-label="${t('Earlier')}">‹</button><button class="next" aria-label="${t('Later')}">›</button>` : ''}
+    ${slides.length > 1 ? `<span class="year">${s.label}</span>` : ''}</div>
+    <figcaption>${s.credit}</figcaption>${pinned && slides.length > 1 ? '<nav class="years"></nav>' : ''}${more}</figure>`;
+}
+function showSlide(i) {
+  const fig = card.querySelector('.photo');
+  if (!fig || !slides.length) return;
+  slide = Math.max(0, Math.min(i, slides.length - 1));
+  const s = slides[slide], img = fig.querySelector('img');
+  img.removeAttribute('data-sv');
+  img.src = s.sv || s.src;
+  fig.classList.toggle('sv', !!s.sv);
+  const year = fig.querySelector('.year');
+  if (year) year.textContent = s.label;
+  fig.querySelector('figcaption').innerHTML = s.credit;
+  const nav = fig.querySelector('.years');
+  if (nav) {
+    nav.innerHTML = slides.map((x, k) => `<button data-slide="${k}"${k === slide ? ' aria-current="true"' : ''}>${x.label}</button>`).join('');
+    nav.querySelectorAll('button').forEach(b => b.addEventListener('click', () => showSlide(+b.dataset.slide)));
+  }
+  fig.querySelector('.prev')?.toggleAttribute('disabled', slide === 0);
+  fig.querySelector('.next')?.toggleAttribute('disabled', slide === slides.length - 1);
+}
+function wireSlides() {
+  const fig = card.querySelector('.photo');
+  if (!fig) return;
+  // A picture that fails to load drops out of the series; the last one gone takes the frame with it.
+  fig.querySelector('img').addEventListener('error', () => {
+    if (slides.length > 1) { slides.splice(slide, 1); showSlide(slide); } else fig.remove();
+  });
+  fig.querySelector('.prev')?.addEventListener('click', () => showSlide(slide - 1));
+  fig.querySelector('.next')?.addEventListener('click', () => showSlide(slide + 1));
+  let x0 = null; // swipe on phones
+  fig.addEventListener('touchstart', e => { x0 = e.touches[0].clientX; }, { passive: true });
+  fig.addEventListener('touchend', e => { const dx = e.changedTouches[0].clientX - x0; if (Math.abs(dx) > 40) showSlide(slide + (dx < 0 ? 1 : -1)); });
+  if (fig.querySelector('.years')) showSlide(slide);
+}
+// A shard that arrives after the card is drawn redraws the card, if it still shows that building.
+function refreshCard(gid) {
+  if (card.hidden) return;
+  if (pinnedGid === gid) pinCard(gid, ...lastPin);
+  else if (hoverGid === gid) { hoverGid = -1; showCard(gid, ...(pointer || lastPin)); }
+}
+
 // The card reads top to bottom: photo, name and year; what the building is; the layers it belongs to and why;
 // the facts; how its date was found; where to read more.
 function cardHtml(gid, pinned) {
@@ -527,8 +603,7 @@ function cardHtml(gid, pinned) {
   const dating = b.orig !== b.year ? `${t(DATE_NOTE[b.flag] || '')} ${t('BAG gives')} ${b.orig}.` : (DATE_NOTE[b.flag] && t(DATE_NOTE[b.flag]));
   return `
     ${pinned ? '<button class="card-close" aria-label="Close">×</button>' : ''}
-    ${im ? `<figure class="photo"><img src="${esc(im.thumb)}" alt="" onerror="this.parentElement.remove()"><figcaption>${t('Photo')}: ${credit}</figcaption></figure>`
-      : `<figure class="photo sv"><img data-sv="${esc(streetView(b))}" alt="" onerror="this.parentElement.remove()"><figcaption>${pinned ? svCredit() : `${t('Street view')}: Gemeente Amsterdam, CC BY 4.0`}</figcaption></figure>`}
+    ${photosHtml(b, im, credit, pinned)}
     <header class="card-head">
       ${w?.label ? `<h3>${esc(tr(w, 'label'))}</h3>` : ''}
       <div class="when"><span class="y">${[1, 2, 4].includes(b.flag) ? 'c. ' : ''}${b.year}</span>
@@ -568,6 +643,7 @@ function showCard(gid, x, y) {
     // Re-render only when the building changes, so the photo is not reloaded every frame.
     hoverGid = gid;
     card.innerHTML = cardHtml(gid, false);
+    wireSlides();
     card.classList.remove('pinned');
     card.hidden = false;
     loadStreetViews(350);
@@ -581,6 +657,7 @@ function pinCard(gid, x, y) {
   uniforms.uSelected.value = gid;
   if (gid < 0) { card.hidden = true; card.classList.remove('pinned'); return; }
   card.innerHTML = cardHtml(gid, true);
+  wireSlides();
   card.classList.add('pinned');
   lastPin = [x, y];
   collapsePanelOnPhone();
