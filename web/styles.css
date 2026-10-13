@@ -189,9 +189,9 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
   .modes { top: auto; left: 12px; right: 12px; transform: none; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
     overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
   .modes::-webkit-scrollbar { display: none; }
-  .modes button { flex: none; padding: 8px 14px; }
+  .modes button { flex: 1 0 auto; padding: 8px 11px; }
   /* Panel: a sheet above the modes, folded to its handle by default. */
-  .panel { top: auto; left: 12px; right: 12px; width: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 150px);
+  .panel { top: auto; left: 12px; right: 12px; width: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 156px);
     max-height: 48vh; padding: 0 14px 12px; }
   .sheet-handle { display: block; width: calc(100% + 28px); margin: 0 -14px 8px; padding: 12px 14px; border: 0;
     background: none; text-align: left; font-weight: 600; cursor: pointer; border-bottom: 1px solid var(--rule); }
@@ -215,9 +215,10 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 /* About: a reading page over the map. */
 .lang .about-open { color: var(--ink); }
 .about { border: 0; border-radius: 12px; padding: 0; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
-  box-shadow: 0 20px 60px rgba(30, 40, 50, .25); color: var(--ink); }
+  box-shadow: 0 20px 60px rgba(30, 40, 50, .25); color: var(--ink); overflow-y: auto; }
 .about::backdrop { background: rgba(228, 232, 234, .7); }
-.about article { padding: 28px 32px 32px; overflow-y: auto; }
+/* The dialog scrolls, not the article: an article that scrolls would shrink beside the floating close button. */
+.about article { padding: 28px 32px 32px; }
 .about h2 { margin: 0 0 12px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
 .about h3 { margin: 22px 0 6px; font-size: 15px; font-weight: 700; }
 .about p, .about li { line-height: 1.6; max-width: 64ch; }
@@ -338,11 +339,23 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .quest.folded > :not(header):not(.q-close):not(.q-steps) { display: none; }
 .quest.folded .q-steps { padding-bottom: 10px; }
 @media (max-width: 720px) {
-  .quest { left: 12px; right: 12px; width: auto; bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 92px); max-height: 52vh; }
+  .quest { left: 12px; right: 12px; width: auto; bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 102px); max-height: 50vh; }
   .quest .q-photo { height: 120px; }
-  .quests .q-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  /* On a phone the quests are a list: level and title on the left, progress and the button on the right. */
+  .quests .q-grid { grid-template-columns: 1fr; gap: 6px; }
   .quests article { padding: 20px 16px; }
+  .quests .q-lede { font-size: 12px; }
+  .q-tile { display: grid; grid-template-columns: 1fr auto; column-gap: 10px; row-gap: 2px; align-items: center; padding: 10px 12px; }
+  .q-tile .q-level { grid-column: 1; grid-row: 1; }
+  .q-tile h3 { grid-column: 1; grid-row: 2; margin: 0; }
   .q-tile p { display: none; }
-  .modes .quests-open { order: -1; margin: 0 4px 0 0; border: 0; border-radius: 999px; }
+  .q-tile footer { grid-column: 2; grid-row: 1 / span 2; margin: 0; gap: 10px; }
+  .q-tile.complete::after { display: none; }
+  /* During a quest the phone shows the map and the riddle only; colour hints switch modes from the riddle itself. */
+  body.questing .panel, body.questing .modes, body.questing .timeline, body.questing .lang, body.questing .tally { display: none; }
+  body.questing .quest { top: calc(env(safe-area-inset-top, 0px) + 62px); max-height: 56vh; }
+  /* Quests leave the strip, so the four colourings fit without scrolling: a pill opposite the language switch. */
+  .modes .quests-open { position: fixed; left: 12px; top: calc(env(safe-area-inset-top, 0px) + 66px); flex: none; margin: 0;
+    padding: 4px 11px; border: 0; border-radius: 999px; background: var(--paper); font-size: 12px; font-weight: 600; }
 }
 @media (prefers-reduced-motion: reduce) { .quest .q-feedback.miss, .q-stamp { animation: none; } }

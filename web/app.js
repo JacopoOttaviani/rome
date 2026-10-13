@@ -844,6 +844,7 @@ const cardsLocked = () => quest && !solved && quizGid >= 0;
 
 function startQuest(q, n, sc = 0, mk = []) {
   quest = q; step = n; score = sc; marks = mk;
+  document.body.classList.add('questing');
   pinCard(-1);
   enterStep(true);
 }
@@ -875,6 +876,7 @@ function questFly(x, z, dist, done = null) {
   flyTo(x, z, done, dist);
 }
 function closeQuest() {
+  document.body.classList.remove('questing');
   quest = null; questEl.hidden = true; ring.visible = false; setQuiz(-1, false);
 }
 function setModeNamed(name) {
@@ -1183,7 +1185,8 @@ document.querySelectorAll('.modes button[data-mode]').forEach(b => b.onclick = (
   if (activeLayer) activeLayer.groups.forEach((g, i) => { if (groupOn[g.bit] !== false) bits[i] = g.bit; });
   uniforms.uGroupBit.value = bits;
   if (uniforms.uMode.value === MODE.layers && activeLayer) uniforms.uLayerAt.value = performance.now() / 1000;
-  if (!phone.matches) setCollapsed(false);
+  // On a phone the sheet opens only when there is a choice to make: a layer to pick.
+  if (!phone.matches || (uniforms.uMode.value === MODE.layers && !activeLayer)) setCollapsed(false);
   renderPanel(); drawHist();
 });
 
