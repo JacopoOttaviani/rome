@@ -28,7 +28,7 @@ const attrs = new DataView(attrBuf);
 // English and Dutch. Data carries `<field>_nl` next to each English text; the interface strings are below.
 const NL_UI = {
   'Every building standing today, by age and historical context.': 'Elk gebouw dat er nu staat, naar leeftijd en historische context.',
-  'About': 'Over', 'Did you know': 'Wist je dat', 'Today': 'Nu', 'Earlier': 'Eerder', 'Later': 'Later', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
+  'About': 'Over', 'Did you know': 'Wist je dat', 'Today': 'Nu', 'Earlier': 'Eerder', 'Later': 'Later', 'This photo did not load.': 'Deze foto laadde niet.', 'Open it in the archive': 'Open hem in het archief', 'Add a layer on GitHub': 'Voeg een laag toe op GitHub',
   'Wikidata records this building as their residence.': 'Volgens Wikidata woonde deze persoon hier.',
   'Wikidata records this building as their place of work.': 'Volgens Wikidata werkte deze persoon hier.',
   'Wikidata records this building as their birthplace.': 'Volgens Wikidata werd deze persoon hier geboren.',
@@ -510,13 +510,16 @@ function archiveOf(bag, then) {
   }
   return archiveShards[n]?.[bag] || [];
 }
+// On stop-token.com the archive's thumbnails come through the site's own Worker (/api/saa): some networks cannot
+// resolve the archive's image host. Anywhere else, straight from the archive.
+const SAA_IMG = location.hostname.endsWith('stop-token.com') ? '/api/saa/' : 'https://images.memorix.nl/ams/thumb/';
 const KIND_EN = { bouwtekening: 'building drawing', tekening: 'drawing', prent: 'print', prentbriefkaart: 'picture postcard' };
 let slides = [], slide = 0;
 // Oldest archive picture first, today's photo (Wikimedia, or the street panorama) last; the card opens on today.
 function photosHtml(b, im, credit, pinned) {
   const archive = archiveOf(b.bag, () => refreshCard(b.gid));
   slides = [...archive.map(a => ({
-    src: `https://images.memorix.nl/ams/thumb/640x480/${a.t}.jpg`, label: String(a.y),
+    src: `${SAA_IMG}640x480/${a.t}.jpg`, label: String(a.y), page: `https://archief.amsterdam/beeldbank/detail/${a.r}`,
     credit: `${a.k ? esc(LANG === 'nl' ? a.k : KIND_EN[a.k] || a.k) + ', ' : ''}${a.y}${a.m ? ', ' + esc(a.m) : ''}, ${pinned
       ? link(`https://archief.amsterdam/beeldbank/detail/${a.r}`, 'Stadsarchief Amsterdam') : 'Stadsarchief Amsterdam'}`,
   })), im ? { src: im.thumb, label: t('Today'), credit: `${t('Photo')}: ${credit}` }
@@ -554,10 +557,15 @@ function showSlide(i) {
 function wireSlides() {
   const fig = card.querySelector('.photo');
   if (!fig) return;
-  // A picture that fails to load drops out of the series; the last one gone takes the frame with it.
+  // A picture that fails to load says so and links to the archive; with nothing else to show the frame goes.
   fig.querySelector('img').addEventListener('error', () => {
-    if (slides.length > 1) { slides.splice(slide, 1); showSlide(slide); } else fig.remove();
+    if (slides.length < 2) { fig.remove(); return; }
+    fig.classList.add('failed');
+    fig.querySelector('.frame .gone')?.remove();
+    fig.querySelector('.frame').insertAdjacentHTML('afterbegin', `<p class="gone">${t('This photo did not load.')}${
+      slides[slide].page ? ` ${link(slides[slide].page, t('Open it in the archive'))}` : ''}</p>`);
   });
+  fig.querySelector('img').addEventListener('load', () => { fig.classList.remove('failed'); fig.querySelector('.frame .gone')?.remove(); });
   fig.querySelector('.prev')?.addEventListener('click', () => showSlide(slide - 1));
   fig.querySelector('.next')?.addEventListener('click', () => showSlide(slide + 1));
   let x0 = null; // swipe on phones
