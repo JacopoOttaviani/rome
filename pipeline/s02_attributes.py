@@ -127,9 +127,21 @@ def estimate_placeholders(p: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
     return p
 
 
+def clean_parts(q):
+    """A few 3D BAG parts carry impossible heights (one at Petroleumhavenweg runs from -1,218 to 2,780 m and put a
+    777 m spike on the map). Such a part keeps its median height when that is sane, else sits on the ground.
+    Amsterdam's tallest structure, the Hemweg chimney, is 174 m: anything past 400 m or below -100 m is broken."""
+    broken = (q.b3_h_max > 400) | (q.b3_h_min < -100)
+    sane = q.b3_h_50p.between(-50, 400)
+    q.loc[broken, "b3_h_70p"] = np.where(sane[broken], q.b3_h_50p[broken], np.nan)
+    if broken.any():
+        print(f"{int(broken.sum())} parts with impossible heights repaired")
+    return q
+
+
 def main():
     p = gpd.read_parquet("data/panden.parquet")
-    q = gpd.read_parquet("data/parts.parquet")
+    q = clean_parts(gpd.read_parquet("data/parts.parquet"))
 
     p["year"] = p.oorspronkelijkbouwjaar.astype(int)
     p["date_flag"] = np.where(p.year == PLACEHOLDER, FLAG_ESTIMATED, FLAG_EXACT).astype(np.uint8)
@@ -142,7 +154,7 @@ def main():
     # Height: tallest LoD1.3 part's 70th-percentile roof above ground.
     top = q.groupby("identificatie").b3_h_70p.max()
     p["h_roof"] = p.identificatie.map(top)
-    p["height"] = (p.h_roof - p.b3_h_maaiveld).clip(lower=2.5)
+    p["height"] = (p.h_roof - p.b3_h_maaiveld).clip(lower=2.5).fillna(2.5)
 
     by_height = np.clip(np.round(p.height / STOREY_M), 1, 99)
     bag3d = p.b3_bouwlagen

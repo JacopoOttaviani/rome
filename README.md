@@ -29,6 +29,7 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s09_residents` | Finds addresses of well-known residents in Dutch Wikipedia |
 | `s10_commons` | Finds more building photos on Commons by address in the file name |
 | `s11_facts` | Checks the 'Did you know' facts against Wikipedia |
+| `s13_quests` | Resolves and checks the quests (`quests.py`) and builds the daily year game's pool |
 | `s12_archive` | Up to six archive photos per building from the Stadsarchief beeldbank, via the Amsterdam Time Machine knowledge graph |
 
 ## Run it
@@ -36,7 +37,7 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 ```bash
 uv sync
 # raw inputs: see the docstrings of s00_* and s01_load (3D BAG tiles, PDOK boundary, RCE and Wikidata exports)
-for s in s01_load s02_attributes s05_layers s03_tiles s04_water s06_wiki s07_labels s12_archive; do uv run python -m pipeline.$s; done
+for s in s01_load s02_attributes s05_layers s03_tiles s04_water s06_wiki s07_labels s12_archive s13_quests; do uv run python -m pipeline.$s; done
 python3 -m http.server 8642 --directory web
 ```
 

@@ -18,6 +18,7 @@ import numpy as np
 import pandas as pd
 import shapely
 
+from .s02_attributes import clean_parts
 from .periods import PERIODS
 
 DAM = (121390.0, 487380.0)  # RD New
@@ -88,12 +89,12 @@ def main():
     b = b.merge(pd.read_parquet("data/layers.parquet"), on="identificatie", how="left")
     labels = json.load(open("data/raw/energy.json"))
     b["energy"] = b.identificatie.str.slice(-16).map(lambda k: ENERGY.index(labels[k]) + 1 if labels.get(k) in ENERGY else 0)
-    q = gpd.read_parquet("data/parts.parquet")
+    q = clean_parts(gpd.read_parquet("data/parts.parquet"))
     gid = {k: i for i, k in enumerate(b.identificatie)}
     ground = dict(zip(b.identificatie, b.b3_h_maaiveld))
 
     q = q[q.identificatie.isin(gid)].copy()
-    q["h"] = (q.b3_h_70p - q.identificatie.map(ground)).clip(lower=2.5)
+    q["h"] = (q.b3_h_70p - q.identificatie.map(ground)).clip(lower=2.5).fillna(2.5)
     q["geometry"] = shapely.simplify(q.geometry.values, SIMPLIFY, preserve_topology=True)
     parts = q.groupby("identificatie")[["h", "geometry"]].apply(lambda d: list(zip(d.h, d.geometry))).to_dict()
 

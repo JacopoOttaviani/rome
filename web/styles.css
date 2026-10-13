@@ -237,3 +237,118 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .card .photo .gone { position: absolute; inset: 0; margin: 0; display: grid; place-content: center; text-align: center; gap: 4px;
   padding: 0 40px; background: var(--sky); font-size: 12px; border-radius: 10px 10px 0 0; }
 .card .photo.failed img { visibility: hidden; height: 190px; }
+
+/* Quests. The playful part of the page, in the city's own sign: every answer is worth three red crosses, the
+   X X X of the arms of Amsterdam. Black and white otherwise, like the rest of the map. */
+.modes .quests-open { display: inline-flex; align-items: center; gap: 6px; margin-left: 4px; background: var(--red); color: var(--paper); font-weight: 700; }
+.modes .quests-open svg { width: 21px; height: 7px; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; fill: none; }
+.modes .quests-open:hover { background: #c80000; }
+.q-x { display: inline-flex; gap: 1px; font-weight: 800; font-size: 15px; line-height: 1; letter-spacing: -0.02em; }
+.q-x i { font-style: normal; color: #d8dcde; }
+.q-x i.on { color: var(--red); }
+.q-level { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; font-weight: 600; color: var(--muted); }
+.q-level .q-x { font-size: 13px; }
+
+.quests { width: min(980px, calc(100vw - 32px)); }
+.quests article { padding: 24px 28px 26px; }
+.quests h2 { margin: 0; }
+.quests .q-lede { max-width: 70ch; margin: 6px 0 0; font-size: 13px; line-height: 1.5; }
+.quests .q-score { font-size: 13px; color: var(--muted); margin: 6px 0 0; }
+.quests .q-score b { color: var(--red); font-size: 18px; }
+.quests .q-grid { list-style: none; margin: 16px 0 0; padding: 0; display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+.quests .q-tile { margin: 0; max-width: none; line-height: 1.35; }
+.q-tile { position: relative; display: flex; flex-direction: column; gap: 4px; padding: 14px 14px 12px; border-radius: 10px;
+  background: var(--paper); box-shadow: inset 0 0 0 1px var(--rule); }
+.q-tile.l3 { box-shadow: inset 0 0 0 2px var(--ink); }
+.q-tile.daily { grid-column: span 2; background: var(--ink); color: var(--paper); box-shadow: none; }
+.q-tile.daily .q-level, .q-tile.daily p, .q-tile.daily .q-progress { color: #b9c0c4; }
+.q-tile h3 { margin: 2px 0 0; font-size: 15px; line-height: 1.25; letter-spacing: -0.01em; }
+.q-tile.daily h3 { font-size: 22px; font-weight: 800; letter-spacing: -0.02em; }
+.q-tile p { margin: 0; color: #4b5257; font-size: 12px; line-height: 1.4; flex: 1; }
+.q-tile footer { display: flex; align-items: center; justify-content: space-between; margin-top: 8px; gap: 6px; }
+.q-tile .q-progress { font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.q-tile.complete::after { content: "×"; position: absolute; top: 6px; right: 12px; color: var(--red); font-weight: 800; font-size: 20px; }
+.quests .q-start { border: 0; background: var(--ink); color: var(--paper); border-radius: 999px; padding: 5px 12px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.q-tile.daily .q-start { background: var(--red); }
+.q-tile.complete .q-start { background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
+
+/* The open quest: a slip at the right, above the timeline. */
+.quest { position: fixed; z-index: 11; right: var(--gutter); bottom: 132px; width: 350px; max-height: calc(100vh - 230px); overflow-y: auto;
+  background: var(--paper); border-radius: 12px; box-shadow: 0 10px 34px rgba(30, 40, 50, .2); font-size: 13px; }
+.quest header { cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 12px 44px 11px 16px; background: var(--ink); color: var(--paper);
+  border-radius: 12px 12px 0 0; position: sticky; top: 0; z-index: 1; }
+.quest header b { font-size: 14px; }
+.quest header .q-level { margin-left: auto; color: #b9c0c4; }
+.quest header .q-x i:not(.on) { color: #4a4f53; }
+.quest .q-close { position: absolute; top: 6px; right: 6px; width: 30px; height: 30px; border: 0; border-radius: 50%; z-index: 2;
+  background: none; color: var(--paper); cursor: pointer; font-size: 20px; line-height: 1; }
+.quest .q-steps { display: flex; align-items: center; gap: 4px; padding: 10px 16px 0; }
+.quest .q-steps i { width: 18px; height: 4px; border-radius: 2px; background: #dfe3e5; }
+.quest .q-steps i.done { background: var(--red); }
+.quest .q-steps i.now { background: var(--ink); }
+.quest .q-steps span { margin-left: auto; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.quest .q-photo { position: relative; margin: 10px 16px 0; overflow: hidden; height: 170px; border-radius: 8px; background: var(--sky); }
+.quest .q-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.quest .q-photo .year { position: absolute; left: 8px; bottom: 8px; background: var(--ink); color: var(--paper); font-weight: 700; font-size: 12px; padding: 2px 7px; border-radius: 4px; }
+.quest .q-credit { font-size: 11px; color: var(--muted); padding: 4px 16px 0; margin: 0; }
+.quest .q-credit a, .quest .q-found a { color: inherit; text-decoration-color: var(--red); text-underline-offset: 3px; }
+.quest .q-name { margin: 12px 16px 0; font-size: 17px; font-weight: 700; letter-spacing: -0.01em; }
+.quest .q-riddle { margin: 0; padding: 10px 16px 0; font-size: 15px; line-height: 1.5; }
+.quest .q-hints { margin: 8px 16px 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 4px; }
+.quest .q-hints li { font-size: 13px; line-height: 1.45; padding-left: 10px; border-left: 2px solid var(--red); }
+.quest .q-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 12px 16px 14px; }
+.quest .q-actions button, .quest .q-options button { border: 1px solid var(--rule); background: var(--paper); border-radius: 999px;
+  padding: 6px 13px; cursor: pointer; font-weight: 600; font-size: 12px; }
+.quest .q-actions button small { color: var(--red); font-weight: 800; }
+.quest .q-actions .primary { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.quest .q-worth { margin-left: auto; }
+.quest .q-feedback { margin: 0; padding: 8px 16px 0; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+.quest .q-actions .q-feedback { padding: 0; }
+.quest .q-feedback.hot { color: var(--red); font-weight: 600; }
+.quest .q-feedback.warm { color: #b45309; }
+.quest .q-feedback.cold { color: #3f6b8f; }
+.quest .q-feedback.miss { animation: q-shake .35s; }
+/* year */
+.quest .q-year { padding: 10px 16px 0; }
+.quest .q-year output { display: block; font-size: 44px; font-weight: 800; letter-spacing: -0.04em; line-height: 1; font-variant-numeric: tabular-nums; }
+.quest .q-year input { width: 100%; margin: 10px 0 2px; accent-color: var(--red); }
+.quest .q-scale { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.quest .q-yeardiff { margin: 0 0 6px; }
+/* choice */
+.quest .q-options { display: flex; flex-direction: column; gap: 6px; padding: 12px 16px 0; }
+.quest .q-options button { text-align: left; border-radius: 8px; padding: 9px 12px; font-size: 13px; font-weight: 500; }
+.quest .q-options button:hover:not(:disabled) { border-color: var(--ink); }
+.quest .q-options button.wrong { text-decoration: line-through; color: var(--muted); }
+.quest .q-options button.right { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+/* the answer */
+.quest .q-found { position: relative; margin: 14px 16px 0; padding: 14px 12px 10px; background: #f3f4f5; border-radius: 8px; }
+.quest .q-found p { margin: 0; font-size: 13px; line-height: 1.5; }
+.quest .q-found .q-earned { margin-top: 6px; font-size: 12px; color: var(--muted); }
+.quest .q-found .q-earned:empty { display: none; }
+.q-stamp { position: absolute; top: -12px; right: 10px; padding: 3px 8px; background: var(--paper); border-radius: 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, .12); animation: q-stamp .45s cubic-bezier(.2, 1.6, .4, 1); }
+.q-stamp .q-x { font-size: 20px; }
+.quest .q-then { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 8px; }
+.quest .q-then figure { margin: 0; position: relative; }
+.quest .q-then img { width: 100%; height: 96px; object-fit: cover; border-radius: 6px; display: block; }
+.quest .q-then figcaption { position: absolute; left: 5px; bottom: 5px; background: var(--ink); color: var(--paper); font-size: 11px; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
+/* the result */
+.quest .q-result { padding: 18px 16px 4px; }
+.quest .q-total { margin: 0; font-size: 15px; color: var(--muted); }
+.quest .q-total b { font-size: 48px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink); }
+.quest .q-verdict { margin: 2px 0 0; font-size: 16px; font-weight: 700; }
+.quest .q-line { margin: 10px 0 0; font-size: 20px; font-weight: 800; color: var(--red); letter-spacing: 0.04em; word-spacing: 0.3em; }
+@keyframes q-stamp { from { transform: rotate(-20deg) scale(2); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes q-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
+.quest.folded > :not(header):not(.q-close):not(.q-steps) { display: none; }
+.quest.folded .q-steps { padding-bottom: 10px; }
+@media (max-width: 720px) {
+  .quest { left: 12px; right: 12px; width: auto; bottom: auto; top: calc(env(safe-area-inset-top, 0px) + 92px); max-height: 52vh; }
+  .quest .q-photo { height: 120px; }
+  .quests .q-grid { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .quests article { padding: 20px 16px; }
+  .q-tile p { display: none; }
+  .q-tile.daily p { display: block; }
+  .modes .quests-open { order: -1; margin: 0 4px 0 0; }
+}
+@media (prefers-reduced-motion: reduce) { .quest .q-feedback.miss, .q-stamp { animation: none; } }
