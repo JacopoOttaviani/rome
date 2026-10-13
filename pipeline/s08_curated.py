@@ -51,11 +51,13 @@ def geocode(address):
 
 @cache
 def wikidata_bags():
-    """Wikipedia article URL → BAG ids of the building it is about, from Wikidata (P5208)."""
+    """Wikipedia article URL → BAG ids of the building it is about, from Wikidata (P5208).
+    Ids no longer in BAG are left out (the Scheepvaarthuis carried a retired one); callers then geocode."""
+    live = set(buildings().bag)
     out = {}
     for r in csv.DictReader(open("data/raw/wd_buildings.csv")):
         for k in ("en", "nl"):
-            if r[k]:
+            if r[k] and r["bag"].zfill(16) in live:
                 out.setdefault(r[k], set()).add(r["bag"].zfill(16))
     return out
 

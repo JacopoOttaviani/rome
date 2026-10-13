@@ -178,6 +178,8 @@ NL = {
         "Genoemd naar de sefardische familie De Pinto, die het huis in 1651 kocht.",
     "East India House": "Oost-Indisch Huis",
     "Headquarters of the Dutch East India Company (VOC), built in 1604.": "Hoofdkantoor van de VOC, gebouwd in 1604.",
+    "Scheepvaarthuis": "Scheepvaarthuis",
+    "Offices of six shipping companies that sailed to the Dutch East Indies, built 1913–1916.": "Kantoor van zes rederijen die op Nederlands-Indië voeren, gebouwd in 1913–1916.",
     "Tropenmuseum, Colonial Institute": "Tropenmuseum, Koloniaal Instituut",
     "Founded in 1864 as the Colonial Museum; this building, opened in 1926, was made to display the Dutch colonies.":
         "Opgericht in 1864 als Koloniaal Museum; dit gebouw, geopend in 1926, werd gemaakt om de Nederlandse koloniën te tonen.",

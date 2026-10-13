@@ -53,7 +53,7 @@ FACTS = [
     ("nl:Scheepvaarthuis",
      "Often called the first true building of the Amsterdam School.",
      "Vaak het eerste echte gebouw van de Amsterdamse School genoemd.",
-     ("Amsterdamse School",)),
+     ("Amsterdamse School",), 'addr:Prins Hendrikkade 108'),
     ("nl:Waag (Amsterdam)",
      "A city gate of 1488 and the oldest of its kind still standing in Amsterdam.",
      "Een stadspoort uit 1488 en de oudste die nog in Amsterdam staat.",
