@@ -34,7 +34,7 @@ const NL_UI = {
   'Start': 'Begin',
   'Continue': 'Verder',
   'Play again': 'Opnieuw',
-  'See result': 'Bekijk resultaat',
+  
   'Find buildings from riddles and old photos, guess their age with the colours switched off. Every answer is worth three crosses; hints and wrong answers cost one.': 'Vind gebouwen aan de hand van raadsels en oude foto’s, raad hun leeftijd met de kleuren uit. Elk antwoord is drie kruisjes waard; hints en foute antwoorden kosten er een.',
   'Your crosses': 'Je kruisjes',
   'Look inside the red circle.': 'Kijk binnen de rode cirkel.',
@@ -771,11 +771,9 @@ function stepFlight(now) {
 // ---------- Quests ----------
 // Short walks through the city as riddles (pipeline/quests.py, checked by s13_quests): find a building on the map,
 // guess a building's year with the colours hidden, or pick one of three answers. Each step is worth three crosses,
-// the X of the city's arms; a hint or a wrong answer costs one. "Year of the day" draws five buildings from a pool
-// whose year Wikidata confirms. Progress stays in this browser.
-let quests = [], yearPool = [];
+// the X of the city's arms; a hint or a wrong answer costs one. Progress stays in this browser.
+let quests = [];
 fetch('data/quests.json').then(r => r.ok ? r.json() : []).then(q => { quests = q; }).catch(() => {});
-fetch('data/yeargame.json').then(r => r.ok ? r.json() : []).then(p => { yearPool = p; }).catch(() => {});
 const questEl = document.getElementById('quest');
 const questsDlg = document.getElementById('quests');
 const L10 = o => o?.[LANG] || o?.en || '';
@@ -787,46 +785,28 @@ function qSave(id, patch) {
 const crosses = (n, of = 3) => `<span class="q-x" aria-label="${n} / ${of}">${Array.from({ length: of }, (_, i) =>
   `<i class="${i < n ? 'on' : ''}">×</i>`).join('')}</span>`;
 const levelMark = lv => `<span class="q-level">${crosses(lv)}${t(LEVEL[lv])}</span>`;
-const today = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-// A small seeded generator, so everyone gets the same five buildings on the same day.
+// A small seeded generator: the same circle offset and answer order every time a step is played.
 function rng(seed) { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
 
-// Today's year game: one building from each of five eras, in a shuffled order.
-function dailyQuest() {
-  const r = rng('ams' + today()), eras = [[0, 1700], [1700, 1880], [1880, 1920], [1920, 1960], [1960, 3000]];
-  const steps = eras.map(([a, b]) => {
-    const c = yearPool.filter(p => p.year >= a && p.year < b && gidOf(p.bag) >= 0);
-    return c.length ? c[Math.floor(r() * c.length)] : null;
-  }).filter(Boolean).sort(() => r() - 0.5).map(p => ({
-    kind: 'year', bags: [p.bag], year: p.year, name: { en: p.en, nl: p.nl },
-    ask: { en: 'When was it built?', nl: 'Wanneer is het gebouwd?' },
-    reveal: null, sources: [], photo: true,
-  }));
-  return { id: 'daily-' + today(), daily: true, level: 0, title: { en: 'Year of the day', nl: 'Jaar van de dag' },
-    intro: { en: 'Five buildings from five eras, new every day. The colours go out; guess when each was built.',
-      nl: 'Vijf gebouwen uit vijf tijdperken, elke dag nieuw. De kleuren gaan uit; raad wanneer elk gebouwd is.' }, steps };
-}
-
 function renderQuestList() {
-  const p = qStore(), d = p['daily-' + today()] || {};
+  const p = qStore();
   const total = quests.reduce((n, q) => n + (p[q.id]?.best || 0), 0), max = quests.reduce((n, q) => n + q.steps.length * 3, 0);
-  const tile = (q, st, wide) => {
+  const tile = (q, st) => {
     const n = q.steps.length, done = Math.min(st.step || 0, n), complete = done >= n;
-    return `<li class="q-tile l${q.level}${complete ? ' complete' : ''}${wide ? ' daily' : ''}">
-      ${q.daily ? `<span class="q-level">${new Date().toLocaleDateString(fmtLocale(), { day: 'numeric', month: 'long' })}</span>` : levelMark(q.level)}
+    return `<li class="q-tile l${q.level}${complete ? ' complete' : ''}">
+      ${levelMark(q.level)}
       <h3>${esc(L10(q.title))}</h3><p>${esc(L10(q.intro))}</p>
       <footer><span class="q-progress">${complete ? `${st.score || 0} / ${n * 3}` : `${done} / ${n}`}</span>
-        <button class="q-start" data-q="${q.id}">${complete ? t(q.daily ? 'See result' : 'Play again') : done ? t('Continue') : t('Start')}</button></footer></li>`;
+        <button class="q-start" data-q="${q.id}">${complete ? t('Play again') : done ? t('Continue') : t('Start')}</button></footer></li>`;
   };
   document.getElementById('quests-body').innerHTML = `
     <h2 id="quests-title">${t('Quests')}</h2>
     <p class="q-lede">${t('Find buildings from riddles and old photos, guess their age with the colours switched off. Every answer is worth three crosses; hints and wrong answers cost one.')}</p>
     <p class="q-score">${t('Your crosses')}: <b>${total}</b> / ${max}</p>
-    <ul class="q-grid">${yearPool.length ? tile(dailyQuest(), d, true) : ''}${quests.map(q => tile(q, p[q.id] || {})).join('')}</ul>`;
+    <ul class="q-grid">${quests.map(q => tile(q, p[q.id] || {})).join('')}</ul>`;
   questsDlg.querySelectorAll('.q-start').forEach(b => b.onclick = () => {
-    const q = b.dataset.q.startsWith('daily') ? dailyQuest() : quests.find(q => q.id === b.dataset.q), st = qStore()[q.id] || {};
+    const q = quests.find(q => q.id === b.dataset.q), st = qStore()[q.id] || {};
     questsDlg.close();
-    if (q.daily && st.step >= q.steps.length) { quest = q; step = q.steps.length - 1; score = st.score; marks = st.marks || []; solved = true; finished(); return; }
     const fresh = !st.step || st.step >= q.steps.length;
     startQuest(q, fresh ? 0 : st.step, fresh ? 0 : st.score || 0, fresh ? [] : st.marks || []);
   });
@@ -931,7 +911,7 @@ function yearPoints(d) { return d <= 5 ? 3 : d <= 20 ? 2 : d <= 50 ? 1 : 0; }
 function renderQuest() {
   if (!quest) return;
   const s = qStep(), ph = photoOf(s);
-  const title = quest.daily ? `${esc(L10(quest.title))}` : `${esc(L10(quest.title))}`;
+  const title = esc(L10(quest.title));
   questEl.className = `quest k-${s.kind}${solved ? ' solved' : ''}${folded ? ' folded' : ''}`;
   let body = '';
   if (s.kind === 'find') {
@@ -949,7 +929,6 @@ function renderQuest() {
         <span class="q-worth">${crosses(worth())}</span></div>`}`;
   } else if (s.kind === 'year') {
     body = `
-      ${s.name ? `<p class="q-name">${esc(L10(s.name))}</p>` : ''}
       ${ph ? `<figure class="q-photo"><img src="${esc(ph.src)}" alt=""></figure><p class="q-credit">${ph.credit}</p>` : ''}
       <p class="q-riddle">${esc(L10(s.ask))}</p>
       ${solved ? '' : `<div class="q-year"><output>${guess}</output>
@@ -965,7 +944,7 @@ function renderQuest() {
   }
   questEl.innerHTML = `
     <button class="q-close" aria-label="${t('Close')}">×</button>
-    <header><b>${title}</b>${quest.daily ? '' : levelMark(quest.level)}</header>
+    <header><b>${title}</b>${levelMark(quest.level)}</header>
     ${progress()}${body}${solved ? revealHtml(s) : ''}`;
   questEl.hidden = false;
   wireQuest(s);
@@ -979,20 +958,10 @@ function revealHtml(s) {
   return `<div class="q-found">
     <div class="q-stamp" aria-hidden="true">${crosses(got)}</div>
     ${then}${extra}
-    <p>${s.reveal ? esc(L10(s.reveal)) : aboutBuilding(b)}${s.sources?.length ? ' ' + s.sources.map((u, i) => link(u, s.sources.length > 1 ? `${t('Source')} ${i + 1}` : t('Source'))).join(', ') : ''}</p>
+    <p>${esc(L10(s.reveal))}${s.sources?.length ? ' ' + s.sources.map((u, i) => link(u, s.sources.length > 1 ? `${t('Source')} ${i + 1}` : t('Source'))).join(', ') : ''}</p>
     <p class="q-earned">${revealed ? t('Shown, not found: no crosses.') : got === 3 ? t('Full marks.') : ''}</p></div>
     <div class="q-actions">${last ? `<button class="primary q-finish">${t('See the result')}</button>`
       : `<button class="primary q-next">${t('Next')}</button>`}<button class="q-card">${t('Open its card')}</button></div>`;
-}
-// For the year game: what the map knows about the building, beyond its year.
-function aboutBuilding(b) {
-  if (!b) return '';
-  const w = b.wk >= 0 ? wiki[b.wk] : null, fact = didYouKnow[b.bag];
-  const who = [w?.architects?.length && `${t(w.architects.length > 1 ? 'Architects' : 'Architect')}: ${w.architects.join(', ')}`,
-    w?.styles?.length && `${t('Style')}: ${w.styles.join(', ')}`].filter(Boolean).map(esc).join('. ');
-  const more = fact ? `${esc(LANG === 'nl' ? fact.nl : fact.en)} ${link(fact.source, t('Source'))}`
-    : wikiOf(w)?.url ? link(wikiOf(w).url, t(wikiOf(w).lang === 'nl' ? 'Dutch Wikipedia' : 'Wikipedia')) : '';
-  return [who && who + '.', more].filter(Boolean).join(' ');
 }
 function wireQuest(s) {
   questEl.querySelector('header').onclick = () => { folded = !folded; questEl.classList.toggle('folded', folded); };
@@ -1035,7 +1004,7 @@ function solve(gid, points) {
 // The result, and a line to share: one group of crosses per step, a dot for each one lost.
 function finished() {
   const n = quest.steps.length, line = marks.map(m => '×'.repeat(m) + '·'.repeat(3 - m)).join(' ');
-  const text = `LAYRS: Amsterdam · ${L10(quest.title)}${quest.daily ? ' ' + today() : ''}\n${line}\n${score} / ${n * 3}\nhttps://stop-token.com/lab/amsterdam/`;
+  const text = `LAYRS: Amsterdam · ${L10(quest.title)}\n${line}\n${score} / ${n * 3}\nhttps://stop-token.com/lab/amsterdam/`;
   const verdict = score >= n * 3 - 1 ? 'A true Amsterdammer.' : score >= n * 2 ? 'You know your way around.' : score >= n ? 'A good walk.' : 'Time for a walk through town.';
   questEl.className = 'quest done';
   questEl.innerHTML = `

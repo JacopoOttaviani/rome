@@ -1,14 +1,9 @@
-"""Resolve every quest step to its buildings and check it (web/data/quests.json); build the daily year game's pool
-(web/data/yeargame.json).
+"""Resolve every quest step to its buildings and check it (web/data/quests.json).
 
 A step is dropped, and its quest with it, when: an article lacks a checked string; a story or address is not found;
 a year step's year is not the map's year for the building (within one year); a photo clue has no photo.
-The year game takes buildings whose Wikidata inception agrees with the map's year (within one year), that have a
-Wikipedia article, a name without a year in it and a photo, and whose year is exact on the map.
 """
-import csv
 import json
-import re
 from pathlib import Path
 
 import pandas as pd
@@ -81,26 +76,6 @@ def main():
         print("problem:", p)
     Path("web/data/quests.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
     print(len(out), "quests")
-
-    # The daily year game
-    inception = json.loads(Path("data/raw/wd_inception.json").read_text())
-    pool, seen = [], set()
-    for r in csv.DictReader(open("data/raw/wd_buildings.csv")):
-        q, bag = r["i"].rsplit("/", 1)[-1], r["bag"].zfill(16)
-        if q in seen or bag not in by.index or bag not in wk.index or q not in inception:
-            continue
-        w = wiki[wk[bag]]
-        y = int(by.loc[bag, "year"])
-        name = w.get("label") or ""
-        # a building with its own article has a real name, not a register description ('Dwarshuis met ...')
-        if (by.loc[bag, "date_flag"] != 0 or not w.get("image") or not name or re.search(r"\d{4}", name)
-                or not (w.get("wiki") or w.get("wiki_nl"))
-                or not any(p >= 9 and d.isdigit() and abs(int(d) - y) <= 1 for d, p in inception[q])):
-            continue
-        seen.add(q)
-        pool.append(dict(bag=bag, year=y, en=name, nl=w.get("label_nl") or name))
-    Path("web/data/yeargame.json").write_text(json.dumps(pool, ensure_ascii=False, separators=(",", ":")))
-    print(len(pool), "buildings in the year game")
 
 
 if __name__ == "__main__":

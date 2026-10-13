@@ -29,7 +29,7 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s09_residents` | Finds addresses of well-known residents in Dutch Wikipedia |
 | `s10_commons` | Finds more building photos on Commons by address in the file name |
 | `s11_facts` | Checks the 'Did you know' facts against Wikipedia |
-| `s13_quests` | Resolves and checks the quests (`quests.py`) and builds the daily year game's pool |
+| `s13_quests` | Resolves the quests (`quests.py`) to buildings and checks every claim |
 | `s12_archive` | Up to six archive photos per building from the Stadsarchief beeldbank, via the Amsterdam Time Machine knowledge graph |
 
 ## Run it
