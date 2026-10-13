@@ -510,9 +510,9 @@ function archiveOf(bag, then) {
   }
   return archiveShards[n]?.[bag] || [];
 }
-// On stop-token.com the archive's thumbnails come through the site's own Worker (/api/saa): some networks cannot
-// resolve the archive's image host. Anywhere else, straight from the archive.
-const SAA_IMG = location.hostname.endsWith('stop-token.com') ? '/api/saa/' : 'https://images.memorix.nl/ams/thumb/';
+// The archive's thumbnails load straight from its image host. A proxy through the site's Worker does not work:
+// the host answers data-centre requests with a bot challenge.
+const SAA_IMG = 'https://images.memorix.nl/ams/thumb/';
 const KIND_EN = { bouwtekening: 'building drawing', tekening: 'drawing', prent: 'print', prentbriefkaart: 'picture postcard' };
 let slides = [], slide = 0;
 // Oldest archive picture first, today's photo (Wikimedia, or the street panorama) last; the card opens on today.
