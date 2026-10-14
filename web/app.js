@@ -878,6 +878,21 @@ function showPins(gx, gz, ax, az, d) {
   pins.visible = true;
 }
 
+// "Show me": a red pin standing on the building, seen from anywhere above the city.
+const marker = new THREE.Group();
+const pinMat = new THREE.MeshBasicMaterial({ color: 0xec0000, depthTest: false, transparent: true });
+const stem = new THREE.Mesh(new THREE.CylinderGeometry(1, 1, 1, 8), pinMat), head = new THREE.Mesh(new THREE.SphereGeometry(1, 20, 14), pinMat);
+stem.renderOrder = head.renderOrder = 21;
+marker.add(stem, head);
+marker.visible = false;
+scene.add(marker);
+function showMarker(b) {
+  const top = b.height, len = 70;
+  stem.scale.set(1.6, len, 1.6); stem.position.set(0, top + len / 2, 0);
+  head.scale.setScalar(9); head.position.set(0, top + len, 0);
+  marker.position.set(b.x, 0, b.z); marker.visible = true;
+}
+
 let quest = null, step = 0, score = 0, marks = [], hintsShown = 0, tries = 0, solved = false, revealed = false, lastDist = null;
 let folded = false, guess = 1800, missed = null;
 const qStep = () => quest.steps[step];
@@ -911,7 +926,7 @@ function overview() {
 }
 function enterStep(first) {
   hintsShown = 0; tries = 0; solved = false; revealed = false; lastDist = null; folded = false; guess = 1800; missed = null;
-  ring.visible = false; pins.visible = false;
+  ring.visible = false; pins.visible = false; marker.visible = false;
   const s = qStep(), gids = stepGids(s);
   if (s.kind === 'find' || s.kind === 'where') {
     setQuiz(-1, false);
@@ -934,7 +949,7 @@ function questFly(x, z, dist, done = null) {
 }
 function closeQuest() {
   document.body.classList.remove('questing');
-  quest = null; questEl.hidden = true; ring.visible = false; pins.visible = false; setQuiz(-1, false);
+  quest = null; questEl.hidden = true; ring.visible = false; pins.visible = false; marker.visible = false; setQuiz(-1, false);
 }
 function setModeNamed(name) {
   document.querySelector(`.modes button[data-mode="${MODE[name]}"]`)?.click();
@@ -1052,9 +1067,14 @@ function solve(gid, points) {
   solved = true; folded = false; ring.visible = false;
   const got = points ?? worth();
   marks[step] = got; score += got;
-  uniforms.uBlind.value = 0;
   quizGid = -1;
-  if (gid >= 0) { pinCard(-1); uniforms.uSelected.value = gid; }
+  // The answer stays marked: the building turns red in its own colours' city, and "Show me" also rings it.
+  // Shown rather than found: the rest of the city goes grey, the building turns red, a pin and a ring mark it.
+  uniforms.uBlind.value = gid < 0 ? 0 : revealed ? 1 : 2;
+  if (gid >= 0) {
+    pinCard(-1); uniforms.uSelected.value = gid;
+    if (revealed) { const b = building(gid); ring.position.set(b.x, 2, b.z); ring.scale.setScalar(45); ring.visible = true; showMarker(b); }
+  }
   const st = qStore()[quest.id] || {};
   const patch = { step: step + 1, score, marks };
   if (step === quest.steps.length - 1) patch.best = Math.max(st.best || 0, score);
@@ -1079,7 +1099,7 @@ function finished() {
     <div class="q-actions"><button class="primary q-share">${t('Challenge a friend')}</button><button class="q-list">${t('More quests')}</button></div>
     <p class="q-shared" hidden></p>`;
   questEl.hidden = false;
-  ring.visible = false; pins.visible = false; setQuiz(-1, false);
+  ring.visible = false; pins.visible = false; marker.visible = false; setQuiz(-1, false);
   rival = null;
   questEl.querySelector('.q-close').onclick = closeQuest;
   questEl.querySelector('.q-list').onclick = () => { closeQuest(); openQuests(); };
