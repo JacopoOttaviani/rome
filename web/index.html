@@ -3,23 +3,28 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>LAYRS: Amsterdam</title>
+<title>Rome, building by building</title>
+<meta name="description" content="Every building in Rome by age and historical context: a 3D map from open data.">
+<meta name="author" content="Jacopo Ottaviani">
+<meta name="color-scheme" content="light dark">
+<script>/* The reader's chosen theme, before the first paint. */ try { var th = localStorage.getItem('theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) {}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
-<script src="logo.js" defer></script>
 </head>
 <body>
-<canvas id="scene" aria-label="3D map of Amsterdam's buildings"></canvas>
+<canvas id="scene" aria-label="3D map of Rome's buildings"></canvas>
 <div class="veil veil-top" aria-hidden="true"></div>
 <div class="veil veil-bottom" aria-hidden="true"></div>
 
 <header class="masthead">
-  
   <div>
-    <h1><span class="layrs" aria-label="LAYRS">LAYRS</span>Amsterdam<i class="baseline"></i></h1>
-    <p class="dek">Every building standing today, by age and historical context.</p>
+    <h1>Roma</h1>
+    <div class="masthead-note">
+    <p class="dek">Every building standing in 2014, and hundreds built since, by age and historical context.</p>
+    <p class="byline-top"><span class="by">Made with 💙 by</span> <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a><span class="sep">·</span><a class="coffee-link" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener">Buy me a coffee</a></p>
+    </div>
   </div>
 </header>
 
@@ -27,82 +32,83 @@
   <button data-mode="0" aria-pressed="true">Period</button>
   <button data-mode="3" aria-pressed="false">Context layers</button>
   <button data-mode="1" aria-pressed="false">Floors</button>
-  <button data-mode="2" aria-pressed="false">Energy</button>
-  <button class="quests-open" aria-haspopup="dialog"><svg viewBox="0 0 24 8" aria-hidden="true"><path d="M1 1l6 6M7 1L1 7M9 1l6 6M15 1L9 7M17 1l6 6M23 1l-6 6"/></svg><span>Quests</span></button>
+  <button data-mode="2" aria-pressed="false">Use</button>
 </nav>
 
 <div class="lang" role="group" aria-label="Language">
   <button class="about-open" aria-haspopup="dialog">About</button>
-  <button data-lang="en" aria-pressed="true">EN</button><button data-lang="nl" aria-pressed="false">NL</button>
+  <button class="theme-toggle" aria-label="Dark mode" title="Dark mode">
+    <svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg>
+    <svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1"/></svg>
+  </button>
+  <button data-lang="en" aria-pressed="true">EN</button><button data-lang="it" aria-pressed="false">IT</button>
 </div>
 
 <dialog id="about" class="about" aria-labelledby="about-title">
   <button class="about-close" aria-label="Close">×</button>
   <article lang="en" data-lang-block="en">
-    <h2 id="about-title">About this map</h2>
-    <p>All 192,000 buildings of Amsterdam, coloured by the year they were built and set in the history that shaped them.</p>
-    <p class="notice">A non-commercial project, made out of curiosity and for education.</p>
-    <p class="author">Made by <a href="https://www.linkedin.com/in/alexanderbarakov" target="_blank" rel="noopener">Alex Barakov</a>.</p>
-    <p class="credit">Inspired by Sasha Bogachev and his <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>.</p>
-    <h3>LAYRS projects</h3>
-    <p>LAYRS maps cities building by building: each one with its age and the layers of history it belongs to.</p>
-    <ul>
-      <li><a href="/lab/amsterdam/">LAYRS: Amsterdam</a>, you are here.</li>
-      <li><a href="/lab/delft/">LAYRS: Delft</a>: 37,000 buildings of Delft, from Vermeer's street to the 1654 gunpowder blast.</li>
-      <li><a href="/ru/lab/spb/">LAYRS: St. Petersburg</a>: 107,000 buildings of St. Petersburg, from Pushkin's flats to the 1941 air-raid reports (in Russian).</li>
-    </ul>
-    <h3>Open source</h3>
-    <p>The code and the pipeline are on <a href="https://github.com/alexbarakov/amsterdam-by-building" target="_blank" rel="noopener">GitHub</a>. Know a piece of Amsterdam's history
-    that lives in its buildings? <a href="https://github.com/alexbarakov/amsterdam-by-building/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Add it as a layer</a>:
-    a list of addresses, a short story for each and the Wikipedia article it rests on.</p>
+    <h2 id="about-title">About</h2>
+    <p class="lede">All <span data-stat="surveyed"></span> buildings of Rome, and of the Vatican City inside it, as the region surveyed them in 2014, and <span data-stat="newer"></span> finished since: coloured by when they were built and set in the history that shaped them.</p>
+    <div class="maker">
+      <p class="author">Made with 💙 by <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a></p>
+      <p class="bio">Italian data journalist and computer scientist, Chief Data Officer at Code for Africa. Builds investigative stories with data, code, maps and AI, published in The Guardian, Der Spiegel, El País and Internazionale.</p>
+      <a class="coffee" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6h9v4a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 10z"/><path d="M11.5 7h1a1.75 1.75 0 0 1 0 3.5h-1"/><path d="M5.5 1.8v2M8 1.8v2"/></svg>Buy me a coffee</a>
+    </div>
+    <h3>Inspired by</h3>
+    <p class="credit"><a href="https://github.com/alexbarakov/amsterdam-by-building" target="_blank" rel="noopener">Amsterdam, building by building</a> by Alex Barakov, whose code (MIT licence) this map adapts to Rome, itself inspired by Sasha Bogachev’s <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>.</p>
     <h3>Data</h3>
-    <p>Downloaded on 12 October 2026; street photos load live.</p>
-    <ul>
-      <li>Buildings, heights, years: 3D BAG v2025.09.03 (TU Delft) on the Dutch building register BAG. CC BY 4.0.</li>
-      <li>Water, boundary, streets: BGT and BAG via PDOK and the City of Amsterdam. CC0.</li>
-      <li>Monuments, history layers: national monument register (RCE) and City of Amsterdam open data. CC0 or CC BY.</li>
-      <li>Energy labels: RVO via RIVM Atlas Leefomgeving. Public domain.</li>
-      <li>Names, photos, stories: Wikidata, Wikipedia, Wikimedia Commons; each photo credits its author and licence.</li>
-      <li>Street photos: City of Amsterdam panoramas. CC BY 4.0.</li>
-      <li>Archive photos, 1940s–2010s: Stadsarchief Amsterdam beeldbank, linked to buildings by the Amsterdam Time Machine (University of Amsterdam). Shown from the archive's own server; each links to its record, where the rights are stated.</li>
+    <ul class="sources">
+      <li>Buildings, heights, uses, monuments: Regione Lazio, geotopographic database 2014. CC BY 4.0.</li>
+      <li>Periods of construction: ISTAT, 2011 census by section. CC BY 4.0.</li>
+      <li>Names, dates, architects, photos: Wikidata (CC0), Wikipedia (CC BY-SA), Wikimedia Commons (credited per photo).</li>
+      <li>Rioni, street names, and the footprints of buildings newer than the survey: © OpenStreetMap contributors. ODbL.</li>
+      <li>When buildings under construction in 2014, and newer ones, were finished: ISPRA, land-consumption maps of Roma Capitale, 2006–2021.</li>
     </ul>
-    <h3>Method</h3>
-    <p>Placeholder and rounded years in BAG are estimated from dated neighbours; where the monument register dates a building
-    earlier, the register wins. Approximate years are paler and marked “c.”. Every hand-written story is checked against its
-    Wikipedia article; the residents layer is found automatically and may contain errors.</p>
+    <details>
+      <summary>How the buildings are dated</summary>
+      <p>Rome has no register that dates each building, as Amsterdam and Paris do. Every building’s card says which source dated it.</p>
+      <ul>
+        <li><b>Wikidata</b> dates <span data-stat="wikidataAll"></span> buildings from their own entries: monuments, churches, palaces. A building still being built in 2014 takes its opening date.</li>
+        <li><b>The 2011 census</b> counts each section’s residential buildings by period of construction. The section’s homes get those periods in the same proportions: the period is the census’s, which house got which is an estimate (<span data-stat="census"></span> buildings). Read the colours as the age of a neighbourhood more than of a single house.</li>
+        <li><b>Before 1919 or undated.</b> In the eight rioni laid out after 1870 the census’s “before 1919” becomes 1871–1918. Elsewhere it stays undated (<span data-stat="censusOld"></span> buildings), with ruins, monuments and fountains no source dates, and appears on the timeline in 1870.</li>
+        <li><b>ISPRA’s land maps</b> of Rome, for 2006, 2012 and every year to 2021, date the buildings the survey found under construction and the buildings newer than it, whose footprints come from OpenStreetMap: the year is the first map that shows a finished building there (<span data-stat="ispraAll"></span> buildings). That is when the structure is visible from above, often a year or two before it opens. Buildings the maps cannot date stay “under construction” in the year of their survey (<span data-stat="construction"></span>).</li>
+        <li><b>Everything else</b>, offices, churches, schools and sheds, takes the date of its nearest dated neighbours and is drawn faded (<span data-stat="estimated"></span> buildings).</li>
+      </ul>
+      <p>Heights are the eaves the 2014 survey measured; a newer building takes its height or storeys from OpenStreetMap, or else the median height of its neighbours. Storeys are height divided by 3.2 m. Data downloaded on 14 October 2026.</p>
+    </details>
+    <p class="notice">A non-commercial project, made out of curiosity and for education.</p>
   </article>
-  <article lang="nl" data-lang-block="nl" hidden>
-    <h2>Over deze kaart</h2>
-    <p>Alle 192.000 gebouwen van Amsterdam, gekleurd naar hun bouwjaar en geplaatst in de geschiedenis die ze vormde.</p>
-    <p class="notice">Een niet-commercieel project, gemaakt uit nieuwsgierigheid en voor onderwijs.</p>
-    <p class="author">Gemaakt door <a href="https://www.linkedin.com/in/alexanderbarakov" target="_blank" rel="noopener">Alex Barakov</a>.</p>
-    <p class="credit">Geïnspireerd door Sasha Bogachev en zijn <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>.</p>
-    <h3>LAYRS-projecten</h3>
-    <p>LAYRS brengt steden gebouw voor gebouw in kaart: elk met zijn leeftijd en de lagen geschiedenis waartoe het behoort.</p>
-    <ul>
-      <li><a href="/lab/amsterdam/">LAYRS: Amsterdam</a>, hier ben je nu.</li>
-      <li><a href="/lab/delft/">LAYRS: Delft</a>: 37.000 gebouwen van Delft, van Vermeers straatje tot de donderslag van 1654.</li>
-      <li><a href="/ru/lab/spb/">LAYRS: St. Petersburg</a>: 107.000 gebouwen van Sint-Petersburg, van Poesjkins woningen tot de luchtaanvalsrapporten van 1941 (in het Russisch).</li>
+  <article lang="it" data-lang-block="it" hidden>
+    <h2>Info</h2>
+    <p class="lede">Tutti i <span data-stat="surveyed"></span> edifici di Roma, e della Città del Vaticano al suo interno, come li ha rilevati la Regione nel 2014, e <span data-stat="newer"></span> finiti dopo: colorati per epoca di costruzione e inseriti nella storia che li ha plasmati.</p>
+    <div class="maker">
+      <p class="author">Fatto con 💙 da <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a></p>
+      <p class="bio">Giornalista di dati e informatico, Chief Data Officer di Code for Africa. Costruisce inchieste con dati, codice, mappe e intelligenza artificiale, pubblicate su The Guardian, Der Spiegel, El País e Internazionale.</p>
+      <a class="coffee" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2.5 6h9v4a3.5 3.5 0 0 1-3.5 3.5H6A3.5 3.5 0 0 1 2.5 10z"/><path d="M11.5 7h1a1.75 1.75 0 0 1 0 3.5h-1"/><path d="M5.5 1.8v2M8 1.8v2"/></svg>Offrimi un caffè</a>
+    </div>
+    <h3>Ispirato a</h3>
+    <p class="credit"><a href="https://github.com/alexbarakov/amsterdam-by-building" target="_blank" rel="noopener">Amsterdam, building by building</a> di Alex Barakov, di cui questa mappa adatta il codice (licenza MIT) a Roma, a sua volta ispirato a <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a> di Sasha Bogachev.</p>
+    <h3>Dati</h3>
+    <ul class="sources">
+      <li>Edifici, altezze, usi, monumenti: Regione Lazio, database geotopografico 2014. CC BY 4.0.</li>
+      <li>Epoche di costruzione: ISTAT, censimento 2011 per sezione. CC BY 4.0.</li>
+      <li>Nomi, date, architetti, foto: Wikidata (CC0), Wikipedia (CC BY-SA), Wikimedia Commons (crediti su ogni foto).</li>
+      <li>Rioni, nomi delle strade e piante degli edifici più recenti del rilievo: © contributori di OpenStreetMap. ODbL.</li>
+      <li>Quando sono stati finiti gli edifici in costruzione nel 2014, e quelli più recenti: ISPRA, mappe del consumo di suolo di Roma Capitale, 2006–2021.</li>
     </ul>
-    <h3>Open source</h3>
-    <p>De code en de pijplijn staan op <a href="https://github.com/alexbarakov/amsterdam-by-building" target="_blank" rel="noopener">GitHub</a>. Ken je een stuk Amsterdamse geschiedenis
-    dat in de gebouwen zit? <a href="https://github.com/alexbarakov/amsterdam-by-building/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Voeg het toe als laag</a>:
-    een lijst adressen, bij elk een kort verhaal en het Wikipedia-artikel waarop het rust.</p>
-    <h3>Gegevens</h3>
-    <p>Gedownload op 12 oktober 2026; straatbeelden worden live geladen.</p>
-    <ul>
-      <li>Gebouwen, hoogtes, bouwjaren: 3D BAG v2025.09.03 (TU Delft) op basis van de BAG. CC BY 4.0.</li>
-      <li>Water, grens, straten: BGT en BAG via PDOK en de gemeente Amsterdam. CC0.</li>
-      <li>Monumenten, historische lagen: rijksmonumentenregister (RCE) en open data van de gemeente Amsterdam. CC0 of CC BY.</li>
-      <li>Energielabels: RVO via de Atlas Leefomgeving van het RIVM. Publiek domein.</li>
-      <li>Namen, foto's, verhalen: Wikidata, Wikipedia, Wikimedia Commons; bij elke foto staan maker en licentie.</li>
-      <li>Straatbeelden: panorama's van de gemeente Amsterdam. CC BY 4.0.</li>
-      <li>Archieffoto's, jaren 1940–2010: beeldbank van het Stadsarchief Amsterdam, aan gebouwen gekoppeld door de Amsterdam Time Machine (Universiteit van Amsterdam). Getoond vanaf de server van het archief; elke foto linkt naar de beschrijving, met de rechten.</li>
-    </ul>
-    <h3>Methode</h3>
-    <p>Plaatshouders en afgeronde jaartallen in de BAG zijn geschat uit gedateerde buren; waar het monumentenregister een gebouw
-    eerder dateert, wint het register. Geschatte jaren zijn lichter en gemarkeerd met “c.”. Elk zelfgeschreven verhaal is
-    gecontroleerd aan zijn Wikipedia-artikel; de laag met bewoners is automatisch gevonden en kan fouten bevatten.</p>
+    <details>
+      <summary>Come sono datati gli edifici</summary>
+      <p>Roma non ha un registro che dati ogni edificio, come Amsterdam e Parigi. La scheda di ogni edificio dice quale fonte lo ha datato.</p>
+      <ul>
+        <li><b>Wikidata</b> data <span data-stat="wikidataAll"></span> edifici dai loro elementi: monumenti, chiese, palazzi. Un edificio ancora in costruzione nel 2014 prende la data di apertura.</li>
+        <li><b>Il censimento 2011</b> conta gli edifici residenziali di ogni sezione per epoca di costruzione. Alle abitazioni della sezione vanno quelle epoche nelle stesse proporzioni: l’epoca è del censimento, quale casa abbia avuto quale è una stima (<span data-stat="census"></span> edifici). Leggete i colori come l’età di un quartiere più che di una singola casa.</li>
+        <li><b>Prima del 1919 o senza data.</b> Negli otto rioni nati dopo il 1870 il “prima del 1919” del censimento diventa 1871–1918. Altrove resta senza data (<span data-stat="censusOld"></span> edifici), insieme a rovine, monumenti e fontane che nessuna fonte data, e compare sulla linea del tempo nel 1870.</li>
+        <li><b>Le mappe del suolo dell’ISPRA</b> per Roma, del 2006, del 2012 e di ogni anno fino al 2021, datano gli edifici che il rilievo ha trovato in costruzione e quelli più recenti, con le piante di OpenStreetMap: l’anno è la prima mappa che vi mostra un edificio finito (<span data-stat="ispraAll"></span> edifici). È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura. Gli edifici che le mappe non riescono a datare restano “in costruzione” nell’anno del loro rilievo (<span data-stat="construction"></span>).</li>
+        <li><b>Tutto il resto</b>, uffici, chiese, scuole e magazzini, prende la data degli edifici datati più vicini ed è disegnato sbiadito (<span data-stat="estimated"></span> edifici).</li>
+      </ul>
+      <p>Le altezze sono le gronde misurate dal rilievo del 2014; un edificio più recente prende altezza o piani da OpenStreetMap, altrimenti l’altezza mediana dei vicini. I piani sono l’altezza divisa per 3,2 m. Dati scaricati il 14 ottobre 2026.</p>
+    </details>
+    <p class="notice">Un progetto senza fini commerciali, nato per curiosità e per scopi didattici.</p>
   </article>
 </dialog>
 
@@ -111,17 +117,23 @@
   <span class="tally-count"><span id="count">0</span> buildings</span>
 </div>
 
+<button class="compass" aria-label="North up" title="North up">
+  <svg viewBox="-32 -32 64 64" aria-hidden="true">
+    <circle class="face" r="30"/>
+    <circle class="ring" r="21.5"/>
+    <line class="tick major" x1="0.00" y1="-29.20" x2="0.00" y2="-25.50"/><line class="tick" x1="7.56" y1="-28.21" x2="7.14" y2="-26.66"/><line class="tick" x1="14.60" y1="-25.29" x2="13.80" y2="-23.90"/><line class="tick major" x1="20.65" y1="-20.65" x2="18.74" y2="-18.74"/><line class="tick" x1="25.29" y1="-14.60" x2="23.90" y2="-13.80"/><line class="tick" x1="28.21" y1="-7.56" x2="26.66" y2="-7.14"/><line class="tick major" x1="29.20" y1="-0.00" x2="25.50" y2="-0.00"/><line class="tick" x1="28.21" y1="7.56" x2="26.66" y2="7.14"/><line class="tick" x1="25.29" y1="14.60" x2="23.90" y2="13.80"/><line class="tick major" x1="20.65" y1="20.65" x2="18.74" y2="18.74"/><line class="tick" x1="14.60" y1="25.29" x2="13.80" y2="23.90"/><line class="tick" x1="7.56" y1="28.21" x2="7.14" y2="26.66"/><line class="tick major" x1="0.00" y1="29.20" x2="0.00" y2="25.50"/><line class="tick" x1="-7.56" y1="28.21" x2="-7.14" y2="26.66"/><line class="tick" x1="-14.60" y1="25.29" x2="-13.80" y2="23.90"/><line class="tick major" x1="-20.65" y1="20.65" x2="-18.74" y2="18.74"/><line class="tick" x1="-25.29" y1="14.60" x2="-23.90" y2="13.80"/><line class="tick" x1="-28.21" y1="7.56" x2="-26.66" y2="7.14"/><line class="tick major" x1="-29.20" y1="0.00" x2="-25.50" y2="0.00"/><line class="tick" x1="-28.21" y1="-7.56" x2="-26.66" y2="-7.14"/><line class="tick" x1="-25.29" y1="-14.60" x2="-23.90" y2="-13.80"/><line class="tick major" x1="-20.65" y1="-20.65" x2="-18.74" y2="-18.74"/><line class="tick" x1="-14.60" y1="-25.29" x2="-13.80" y2="-23.90"/><line class="tick" x1="-7.56" y1="-28.21" x2="-7.14" y2="-26.66"/>
+    <text class="n" x="0" y="-15.2">N</text><text x="15.6" y="0.2">E</text><text x="0" y="15.6">S</text><text x="-15.6" y="0.2">W</text>
+    <path class="needle-n" d="M0 -12.5 L3.4 0 L-3.4 0 Z"/><path class="needle-s" d="M0 12.5 L3.4 0 L-3.4 0 Z"/>
+    <circle class="hub" r="1.6"/>
+  </svg>
+</button>
+
 <aside id="panel" class="panel">
   <button class="sheet-handle" aria-expanded="true" aria-controls="panel-body">Show legend</button>
   <div id="panel-body"></div>
 </aside>
 
 <div id="card" class="card" hidden></div>
-<section id="quest" class="quest" hidden aria-live="polite"></section>
-<dialog id="quests" class="about quests" aria-labelledby="quests-title">
-  <button class="about-close" aria-label="Close">×</button>
-  <article id="quests-body"></article>
-</dialog>
 <p class="howto">Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.</p>
 
 <footer class="timeline">
@@ -131,7 +143,10 @@
   <canvas id="hist" aria-label="Buildings per year; drag to set the year"></canvas>
 </footer>
 
-<div id="loading" class="loading">Building the city <span id="progress">0</span>%</div>
+<div id="loading" class="loading">
+  <p class="motto">All roads lead to Rome.</p>
+  <p class="building"><span class="building-text">Building the city</span> <span id="progress">0</span>%</p>
+</div>
 <script type="module" src="app.js"></script>
 </body>
 </html>

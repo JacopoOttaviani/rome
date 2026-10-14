@@ -1,10 +1,11 @@
-"""Names, photos and article extracts for buildings that have a Wikidata item (P5208 BAG id).
+"""Names, photos and article extracts for buildings, from the Wikidata items standing on them and the survey's names.
 
-wiki.json: list of {label, wiki: {lang, url, extract} | null, architects, styles, image: {thumb, page,
-artist, license, licenseUrl} | null}. data/wiki_index.parquet maps each pand to its entry.
+wiki.json: list of {label, label_it, wiki: {lang, url, extract} | null, wiki_it: … | null, architects, styles,
+image: {thumb, page, artist, license, licenseUrl} | null}. data/wiki_index.parquet maps each building to its entry.
+Where several items stand on one building, its own (a building-class item) speaks for it, then the best known. A building with no
+item keeps the name the 2014 survey gives it (Ospedale San Pietro Fatebenefratelli), with no article or photo.
 Photos are Wikimedia Commons files with their author and licence, as the Commons API reports them.
 """
-import csv
 import html
 import json
 import re
@@ -15,19 +16,38 @@ from urllib.parse import unquote
 import pandas as pd
 import requests
 
-UA = {"User-Agent": "amsterdam-by-building/0.1 (https://stop-token.com/lab/amsterdam/)"}
+from .wikidata import dates_its_building, placed
+
+UA = {"User-Agent": "rome-by-building/0.1 (open-data map of Rome's buildings; https://github.com/alexbarakov/amsterdam-by-building fork)"}
+
+
+CACHE = Path("data/raw/wiki_cache")
 
 
 def get_json(url, params):
-    """GET with backoff: the Wikimedia APIs answer bursts with 429 and an HTML page."""
-    for attempt in range(6):
+    """GET with backoff: the Wikimedia APIs answer bursts with 429; wait as long as they ask."""
+    for attempt in range(8):
         r = requests.get(url, params=params, headers=UA, timeout=60)
         if r.ok and r.headers.get("content-type", "").startswith("application/json"):
-            time.sleep(0.3)
+            time.sleep(1.0)
             return r.json()
-        time.sleep(2 ** attempt)
+        wait = r.headers.get("retry-after", "")
+        time.sleep(int(wait) if wait.isdigit() else 20 * (attempt + 1))
     r.raise_for_status()
     raise RuntimeError(f"{url}: {r.status_code} {r.text[:200]}")
+
+
+def cached(name, fetch, keys):
+    """Results already fetched are kept in data/raw/wiki_cache, so a rerun only asks for what is new."""
+    CACHE.mkdir(parents=True, exist_ok=True)
+    path = CACHE / f"{name}.json"
+    have = json.loads(path.read_text()) if path.exists() else {}
+    todo = set(keys) - set(have.get("_asked", []))
+    if todo:
+        have.update(fetch(todo))
+        have["_asked"] = sorted(set(have.get("_asked", [])) | todo)
+        path.write_text(json.dumps(have, ensure_ascii=False))
+    return {k: v for k, v in have.items() if k != "_asked"}
 
 
 def batched(xs, n):
@@ -86,62 +106,44 @@ def title_of(url):
     return unquote(url.rsplit("/wiki/", 1)[1]).replace("_", " ")
 
 
-def main():
-    rows = list(csv.DictReader(open("data/raw/wd_buildings.csv")))
-    items = {}
-    for r in rows:
-        it = items.setdefault(r["i"], dict(bags=set(), label=r["labelEn"] or r["labelNl"], label_nl=r["labelNl"] or r["labelEn"],
-                                           en=r["en"], nl=r["nl"],
-                                           image=None, architects=[a for a in r["architects"].split("|") if a],
-                                           styles=[s for s in r["styles"].split("|") if s]))
-        it["bags"].add(r["bag"].zfill(16))
-        if r["image"] and not it["image"]:
-            it["image"] = unquote(r["image"].rsplit("/", 1)[1]).replace("_", " ")
+def tidy(name):
+    """Survey names come in capitals now and then (CASERMA PIAVE): give them a title case."""
+    return name.title().replace(" Di ", " di ").replace(" Del ", " del ").replace(" Della ", " della ") \
+        if name.isupper() else name
 
-    ex_en = extracts("en", {title_of(i["en"]) for i in items.values() if i["en"]})
-    ex_nl = extracts("nl", {title_of(i["nl"]) for i in items.values() if i["nl"]})
-    imgs = images({i["image"] for i in items.values() if i["image"]})
-    print(f"extracts en {len(ex_en)}, nl {len(ex_nl)}; images {len(imgs)}")
+
+def main():
+    # The building's own item first (a church, not the altarpiece inside it), then the best known.
+    it = placed()
+    it["own"] = it.classes.map(dates_its_building)
+    it = it.sort_values(["own", "links"], ascending=False).drop_duplicates("bid")
+    file_of = lambda url: unquote(url.rsplit("/", 1)[1]).replace("_", " ") if url else None
+    ex_en = cached("extracts_en", lambda t: extracts("en", t), {title_of(u) for u in it.wEn if u})
+    ex_it = cached("extracts_it", lambda t: extracts("it", t), {title_of(u) for u in it.wIt if u})
+    imgs = cached("images", images, {f for f in map(file_of, it.image) if f})
+    print(f"extracts en {len(ex_en)}, it {len(ex_it)}; images {len(imgs)}")
 
     entries, index = [], {}
-    # Rank: an article first, then a photo, so a pand with two items shows the richer one.
-    for it in sorted(items.values(), key=lambda i: (not (i["en"] or i["nl"]), not i["image"])):
-        wiki = None
-        if it["en"]:
-            wiki = dict(lang="en", url=it["en"], extract=ex_en.get(title_of(it["en"])))
-        elif it["nl"]:
-            wiki = dict(lang="nl", url=it["nl"], extract=ex_nl.get(title_of(it["nl"])))
-        img = imgs.get(it["image"]) if it["image"] else None
-        if not (wiki or img):
-            continue
-        k = len(entries)
-        wiki_nl = dict(lang="nl", url=it["nl"], extract=ex_nl.get(title_of(it["nl"]))) if it["nl"] else None
-        entries.append(dict(label=it["label"], label_nl=it["label_nl"], wiki=wiki, wiki_nl=wiki_nl,
-                            architects=it["architects"], styles=it["styles"], image=img))
-        for b in it["bags"]:
-            index.setdefault(b, k)
-    # Photos found on Commons by address (s10_commons) fill buildings that have none yet.
-    commons = Path("data/commons_best.json")
-    if commons.exists():
-        best = json.loads(commons.read_text())
-        need = {bag: f for bag, f in best.items()
-                if bag not in index or not entries[index[bag]].get("image")}
-        found = images({f["title"][5:] for f in need.values()})
-        added = 0
-        for bag, f in need.items():
-            img = found.get(f["title"][5:])
-            if not img or not img.get("thumb"):
-                continue
-            if bag in index:
-                entries[index[bag]]["image"] = img
-            else:
-                index[bag] = len(entries)
-                entries.append(dict(label=None, label_nl=None, wiki=None, wiki_nl=None, architects=[], styles=[], image=img))
-            added += 1
-        print(added, "buildings got a Commons photo by address")
+    for r in it.itertuples():
+        wiki = dict(lang="en", url=r.wEn, extract=ex_en.get(title_of(r.wEn))) if r.wEn else None
+        wiki_it = dict(lang="it", url=r.wIt, extract=ex_it.get(title_of(r.wIt))) if r.wIt else None
+        img = imgs.get(file_of(r.image)) if r.image else None
+        index[r.bid] = len(entries)
+        entries.append(dict(label=r.en or r.it, label_it=r.it or r.en, qid=r.qid, wiki=wiki, wiki_it=wiki_it,
+                            architects=[a for a in r.architects.split("|") if a],
+                            styles=[s for s in r.styles.split("|") if s], image=img))
+    b = pd.read_parquet("data/buildings.parquet", columns=["id", "name"])
+    named = 0
+    for i, name in zip(b.id, b.name):
+        if name and i not in index:
+            index[i] = len(entries)
+            entries.append(dict(label=tidy(name), label_it=tidy(name), wiki=None, wiki_it=None, architects=[],
+                                styles=[], image=None))
+            named += 1
+    print(named, "more buildings named by the survey")
     Path("web/data/wiki.json").write_text(json.dumps(entries, ensure_ascii=False, separators=(",", ":")))
-    pd.DataFrame({"bag": list(index), "wk": list(index.values())}).to_parquet("data/wiki_index.parquet")
-    print(len(entries), "entries for", len(index), "panden;", Path("web/data/wiki.json").stat().st_size // 1024, "KB")
+    pd.DataFrame({"id": list(index), "wk": list(index.values())}).to_parquet("data/wiki_index.parquet")
+    print(len(entries), "entries for", len(index), "buildings;", Path("web/data/wiki.json").stat().st_size // 1024, "KB")
 
 
 if __name__ == "__main__":

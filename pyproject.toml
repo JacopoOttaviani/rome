@@ -1,7 +1,7 @@
 [project]
-name = "amsterdam-pipeline"
+name = "rome-pipeline"
 version = "0.1.0"
-description = "Amsterdam, building by building: the data pipeline"
+description = "Rome, building by building: the data pipeline"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

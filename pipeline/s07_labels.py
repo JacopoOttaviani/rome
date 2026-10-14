@@ -1,112 +1,114 @@
-"""Street and canal names, placed along their own outlines.
+"""Street, square and river names, placed along their own lines.
 
-Source: BAG openbare ruimtes from the Amsterdam city API (polygon per street, CC0). Each polygon is cut
-into 300 m cells; every piece longer than it is wide gets one label at its centre, turned along its
-long side. Tier 1 (canals and main streets) shows from afar, tier 2 only up close.
+Source: named ways from OpenStreetMap (ODbL), fetched by s00_fetch_osm. A street's ways are merged into lines;
+a label goes every 350 m along each line, turned along it, where the line runs straight enough to carry it.
+Squares get one label at their centre. Tier 1 (the Tiber, the Aniene and the main streets) shows from afar,
+tier 2 only up close.
 """
 import json
 import math
 from pathlib import Path
 
 import numpy as np
-import requests
 import shapely
-from shapely.geometry import box, shape
+from shapely.geometry import LineString, MultiLineString, Polygon
 
-from .s03_tiles import DAM
+from .city import ORIGIN, TO_UTM
 
-API = "https://api.data.amsterdam.nl/v1/bag/openbareruimtes/"
-CELL = 300.0
+SPACING = 350.0
+# Street width by OSM class, for keeping a name inside its street.
+WIDTH = {"motorway": 24, "trunk": 22, "primary": 20, "secondary": 16, "tertiary": 13, "unclassified": 9,
+         "residential": 9, "living_street": 7, "pedestrian": 9, "service": 6, "footway": 5, "path": 4, "steps": 4}
+SKIP = {"motorway", "motorway_link", "trunk_link", "primary_link", "secondary_link", "tertiary_link", "service",
+        "track", "path", "cycleway", "bridleway", "corridor", "platform", "construction", "proposed"}
 TIER1 = {
-    # canals and rivers
-    "Singel", "Herengracht", "Keizersgracht", "Prinsengracht", "Singelgracht", "Amstel", "Brouwersgracht",
-    "Lijnbaansgracht", "Bloemgracht", "Egelantiersgracht", "Leidsegracht", "Reguliersgracht", "Lauriergracht",
-    "Oudezijds Voorburgwal", "Oudezijds Achterburgwal", "Kloveniersburgwal", "Geldersekade", "Groenburgwal",
-    "Nieuwe Herengracht", "Nieuwe Keizersgracht", "Nieuwe Prinsengracht", "Entrepotdok", "Oosterdok",
-    "Westerdok", "Amstelkanaal", "Noordhollandsch Kanaal", "Kostverlorenvaart", "Boerenwetering",
-    "Het IJ", "IJ", "Nieuwe Meer", "Sloterplas", "Rapenburgwal", "Houtkopersburgwal", "Looiersgracht",
-    # main streets and squares
-    "Damrak", "Rokin", "Kalverstraat", "Nieuwendijk", "Dam", "Leidsestraat", "Utrechtsestraat", "Vijzelstraat",
-    "Weesperstraat", "Wibautstraat", "Overtoom", "Ferdinand Bolstraat", "Van Baerlestraat", "Stadhouderskade",
-    "Nassaukade", "Marnixstraat", "Rozengracht", "Raadhuisstraat", "Haarlemmerstraat", "Haarlemmerdijk",
-    "Jodenbreestraat", "Plantage Middenlaan", "Sarphatistraat", "Ceintuurbaan", "Albert Cuypstraat",
-    "De Clercqstraat", "Kinkerstraat", "Prins Hendrikkade", "Zeedijk", "Warmoesstraat", "Spui", "Rembrandtplein",
-    "Leidseplein", "Museumplein", "Beethovenstraat", "Apollolaan", "Amstelveenseweg", "IJburglaan",
-    "Van Woustraat", "Linnaeusstraat", "Middenweg", "Admiraal de Ruijterweg", "Jan Evertsenstraat",
-    "Bos en Lommerweg", "Klaprozenweg", "Johan Huizingalaan", "Europaboulevard", "Bijlmerdreef",
-    "Mr. Visserplein", "Waterlooplein", "Frederiksplein", "Weteringschans", "Mauritskade", "Hobbemakade",
+    "Tevere", "Fiume Tevere", "Aniene", "Fiume Aniene",
+    "Via del Corso", "Via Nazionale", "Via del Tritone", "Corso Vittorio Emanuele II", "Via Cavour",
+    "Via dei Fori Imperiali", "Via della Conciliazione", "Via Veneto", "Via Vittorio Veneto", "Via del Babuino",
+    "Via Appia Antica", "Via Appia Nuova", "Via Nomentana", "Via Salaria", "Via Flaminia", "Via Cassia",
+    "Via Aurelia", "Via Tiburtina", "Via Prenestina", "Via Casilina", "Via Tuscolana", "Via Ostiense",
+    "Via Cristoforo Colombo", "Via Marmorata", "Viale Trastevere", "Via Arenula", "Via XX Settembre",
+    "Via Merulana", "Viale Manzoni", "Via Giulia", "Via dei Coronari", "Via del Teatro di Marcello",
+    "Viale Giulio Cesare", "Via Cola di Rienzo", "Viale delle Milizie", "Corso d'Italia", "Corso di Francia",
+    "Piazza Navona", "Piazza di Spagna", "Piazza del Popolo", "Piazza Venezia", "Piazza San Pietro",
+    "Piazza della Repubblica", "Piazza del Campidoglio", "Campo de' Fiori", "Piazza della Rotonda",
+    "Piazza di San Giovanni in Laterano", "Piazza Vittorio Emanuele II", "Piazza del Colosseo",
 }
 
 
-def fetch():
-    items, url, params = [], API, {"_format": "json", "_pageSize": 1000}
-    while url:
-        d = requests.get(url, params=params, timeout=120).json()
-        items += d["_embedded"]["openbareruimtes"]
-        url = d["_links"].get("next", {}).get("href")
-        params = None
-    return [o for o in items if o.get("geometrie") and not o.get("eindGeldigheid")
-            and o["typeOmschrijving"] in ("Weg", "Water")]
+def local(coords):
+    x, y = TO_UTM.transform(*np.array(coords).T)
+    return np.c_[x - ORIGIN[0], -(y - ORIGIN[1])]
 
 
-def pieces(geom):
-    x0, y0, x1, y1 = geom.bounds
-    for cx in np.arange(math.floor(x0 / CELL) * CELL, x1, CELL):
-        for cy in np.arange(math.floor(y0 / CELL) * CELL, y1, CELL):
-            part = geom.intersection(box(cx, cy, cx + CELL, cy + CELL))
-            for p in getattr(part, "geoms", [part]):
-                if p.geom_type == "Polygon" and p.area > 200:
-                    yield p
+def angle(dx, dz):
+    a = math.degrees(math.atan2(dz, dx))
+    return (a + 90) % 180 - 90  # keep text upright
 
 
-def placement(p):
-    """Centre and angle (degrees, local frame) of a piece, or None if it is not elongated."""
-    r = p.minimum_rotated_rectangle
-    c = np.array(r.exterior.coords)[:4]
-    e1, e2 = c[1] - c[0], c[2] - c[1]
-    long, short = (e1, e2) if np.hypot(*e1) >= np.hypot(*e2) else (e2, e1)
-    if np.hypot(*long) < 2.2 * np.hypot(*short) or np.hypot(*long) < 60:
-        return None
-    pt = p.representative_point() if not p.contains(p.centroid) else p.centroid
-    ang = math.degrees(math.atan2(-long[1], long[0]))  # local z points south
-    ang = (ang + 90) % 180 - 90  # keep text upright
-    # The piece's width: area over length is the street's mean width, steadier than the rectangle's short side.
-    width = p.area / max(np.hypot(*long), 1)
-    return [round(pt.x - DAM[0], 1), round(-(pt.y - DAM[1]), 1), round(ang, 1), round(float(np.hypot(*long))),
-            round(float(width), 1)]
+def along(line: LineString, width: float):
+    """Placements every SPACING metres, each with the length of straight street around it."""
+    n = max(1, int(line.length // SPACING))
+    for k in range(n):
+        d = (k + 0.5) * line.length / n
+        for half in (100, 70, 50, 35):
+            a, b = line.interpolate(max(0, d - half)), line.interpolate(min(line.length, d + half))
+            chord = math.dist((a.x, a.y), (b.x, b.y))
+            arc = min(line.length, d + half) - max(0, d - half)
+            if arc > 0 and chord / arc > 0.97:
+                p = line.interpolate(d)
+                yield [round(p.x, 1), round(p.y, 1), round(angle(b.x - a.x, b.y - a.y), 1), round(chord), width]
+                break
 
 
 def main():
-    raw = Path("data/raw/openbareruimtes.json")
-    if not raw.exists():
-        raw.write_text(json.dumps(fetch()))
-    items = json.loads(raw.read_text())
-    labels = []
-    for o in items:
-        g = shapely.make_valid(shape(o["geometrie"] if isinstance(o["geometrie"], dict) else json.loads(o["geometrie"])))
-        pts = [pl for p in pieces(g) if (pl := placement(p))]
-        if not pts:
+    ways = json.loads(Path("data/raw/osm/streets.json").read_text())
+    lines, squares, kinds = {}, {}, {}
+    for w in ways:
+        t, name = w["tags"], w["tags"].get("name")
+        hw = t.get("highway")
+        if not name or hw in SKIP or len(w["geom"]) < 2:
             continue
-        name = o["naam"]
-        labels.append(dict(name=name, water=o["typeOmschrijving"] == "Water",
-                           tier=1 if name in TIER1 else 2, pts=pts, origin=o.get("beschrijvingNaam")))
-    # One entry per name: a canal is registered both as water and as the street along it; keep the water.
+        xy = local(w["geom"])
+        if t.get("place") == "square" or (t.get("area") == "yes" and hw == "pedestrian"):
+            if len(xy) >= 4:
+                squares.setdefault(name, []).append(Polygon(xy))
+            continue
+        water = t.get("waterway") == "river"
+        lines.setdefault(name, []).append(LineString(xy))
+        width = 60 if water else float(t["width"]) if t.get("width", "").replace(".", "").isdigit() else WIDTH.get(hw, 8)
+        k = kinds.setdefault(name, dict(water=water, width=0, major=False))
+        k["width"] = max(k["width"], width)
+        k["major"] |= hw in ("trunk", "primary")
+    labels = []
+    for name, parts in lines.items():
+        merged = shapely.line_merge(MultiLineString(parts))
+        k = kinds[name]
+        pts = [p for g in getattr(merged, "geoms", [merged]) if g.length > 60 for p in along(g, k["width"])]
+        if pts:
+            labels.append(dict(name=name, water=k["water"], tier=1 if name in TIER1 or k["water"] else 2, pts=pts))
+    for name, polys in squares.items():
+        p = shapely.union_all([shapely.make_valid(q) for q in polys])
+        c = p.representative_point()
+        side = math.sqrt(p.area)
+        labels.append(dict(name=name, water=False, tier=1 if name in TIER1 else 2,
+                           pts=[[round(c.x, 1), round(c.y, 1), 0.0, round(side), round(side * 0.6, 1)]]))
+    # One entry per name, placements at least 350 m apart, longest stretches first.
     merged = {}
-    for l in sorted(labels, key=lambda l: not l["water"]):
+    for l in labels:
         m = merged.setdefault(l["name"], dict(l, pts=[]))
         m["pts"] += l["pts"]
-    labels = []
+    out = []
     for m in merged.values():
-        # Keep placements at least 350 m apart, longest stretches first.
         kept = []
         for p in sorted(m["pts"], key=lambda p: -p[3]):
-            if all((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 > 350 ** 2 for q in kept):
+            if all((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 > SPACING ** 2 for q in kept):
                 kept.append(p)
         m["pts"] = kept
-        labels.append(m)
-    Path("web/data/labels.json").write_text(json.dumps(labels, ensure_ascii=False, separators=(",", ":")))
-    print(len(labels), "names,", sum(len(l["pts"]) for l in labels), "placements,",
-          sum(l["tier"] == 1 for l in labels), "tier 1;", Path("web/data/labels.json").stat().st_size // 1024, "KB")
+        out.append(m)
+    Path("web/data/labels.json").write_text(json.dumps(out, ensure_ascii=False, separators=(",", ":")))
+    print(len(out), "names,", sum(len(l["pts"]) for l in out), "placements,",
+          sum(l["tier"] == 1 for l in out), "tier 1;", Path("web/data/labels.json").stat().st_size // 1024, "KB")
 
 
 if __name__ == "__main__":
