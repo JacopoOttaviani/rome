@@ -27,6 +27,22 @@ const attrs = new DataView(attrBuf);
 // ---------- Language ----------
 // English and Dutch. Data carries `<field>_nl` next to each English text; the interface strings are below.
 const NL_UI = {
+  'steps': 'stappen',
+  'Best': 'Beste',
+  'Your points': 'Je punten',
+  'pts': 'pnt',
+  'Find buildings from riddles and old photos, point to them on the map, guess their age with the colours switched off. Up to 100 points an answer; hints cost points.': 'Vind gebouwen aan de hand van raadsels en oude foto’s, wijs ze aan op de kaart, raad hun leeftijd met de kleuren uit. Tot 100 punten per antwoord; hints kosten punten.',
+  'Score to beat': 'Te verslaan',
+  'A photo of the building': 'Een foto van het gebouw',
+  'Tap the map where you think it stands.': 'Tik op de kaart waar je denkt dat het staat.',
+  'Spot on.': 'Precies raak.',
+  'off': 'ernaast',
+  'Shown, not found: no points.': 'Getoond, niet gevonden: geen punten.',
+  'Challenge a friend': 'Daag iemand uit',
+  'Link copied': 'Link gekopieerd',
+  'You beat your friend': 'Je wint',
+  'A draw with your friend': 'Gelijkspel',
+  'Your friend wins this time': 'Deze keer wint de ander',
   'Quests': 'Speurtochten',
   'Easy': 'Makkelijk',
   'Medium': 'Gemiddeld',
@@ -433,7 +449,7 @@ for (const w of pool) {
     addTile(data);
     loaded++;
     document.getElementById('progress').textContent = Math.round(100 * loaded / config.tiles.length);
-    if (loaded === config.tiles.length) document.getElementById('loading').hidden = true;
+    if (loaded === config.tiles.length) { document.getElementById('loading').hidden = true; cityReady(); }
     next();
   };
   next();
@@ -735,6 +751,7 @@ canvas.addEventListener('pointerup', e => {
   dragging = false;
   if (!downAt || Math.hypot(e.clientX - downAt[0], e.clientY - downAt[1]) > 5) return;
   const gid = pick(e.clientX, e.clientY);
+  if (quest && !solved && qStep().kind === 'where') { whereClick(e.clientX, e.clientY); return; }
   if (quest && !solved && qStep().kind === 'find') { questClick(gid); return; }
   if (cardsLocked()) return;
   pinCard(gid === pinnedGid ? -1 : gid, e.clientX, e.clientY);
@@ -770,45 +787,49 @@ function stepFlight(now) {
 
 // ---------- Quests ----------
 // Short walks through the city as riddles (pipeline/quests.py, checked by s13_quests): find a building on the map,
-// guess a building's year with the colours hidden, or pick one of three answers. Each step is worth three crosses,
-// the X of the city's arms; a hint or a wrong answer costs one. Progress stays in this browser.
+// point to where a building stands, guess its year with the colours hidden, or pick one of three answers.
+// Every answer is worth up to 100 points; hints and wrong answers cost points. A finished quest can be sent to a
+// friend as a challenge: the link opens the same quest with the score to beat. Progress stays in this browser.
 let quests = [];
-fetch('data/quests.json').then(r => r.ok ? r.json() : []).then(q => { quests = q; }).catch(() => {});
+fetch('data/quests.json').then(r => r.ok ? r.json() : []).then(q => { quests = q; challengeFromUrl(); }).catch(() => {});
 const questEl = document.getElementById('quest');
 const questsDlg = document.getElementById('quests');
 const L10 = o => o?.[LANG] || o?.en || '';
 const LEVEL = ['', 'Easy', 'Medium', 'Hard'];
-const qStore = () => { try { return JSON.parse(localStorage.getItem('ams-quests') || '{}'); } catch { return {}; } };
+const qStore = () => { try { return JSON.parse(localStorage.getItem('ams-quests2') || '{}'); } catch { return {}; } };
 function qSave(id, patch) {
-  try { const p = qStore(); p[id] = { ...(p[id] || {}), ...patch }; localStorage.setItem('ams-quests', JSON.stringify(p)); } catch {}
+  try { const p = qStore(); p[id] = { ...(p[id] || {}), ...patch }; localStorage.setItem('ams-quests2', JSON.stringify(p)); } catch {}
 }
-const crosses = (n, of = 3) => `<span class="q-x" aria-label="${n} / ${of}">${Array.from({ length: of }, (_, i) =>
+const crosses = (n, of = 3) => `<span class="q-x" aria-hidden="true">${Array.from({ length: of }, (_, i) =>
   `<i class="${i < n ? 'on' : ''}">×</i>`).join('')}</span>`;
 const levelMark = lv => `<span class="q-level">${crosses(lv)}${t(LEVEL[lv])}</span>`;
+const fmtN = n => n.toLocaleString(fmtLocale());
+const maxOf = q => q.steps.length * 100;
 // A small seeded generator: the same circle offset and answer order every time a step is played.
 function rng(seed) { let h = 2166136261; for (const c of seed) h = Math.imul(h ^ c.charCodeAt(0), 16777619); return () => ((h = Math.imul(h ^ (h >>> 15), 2246822507) ^ Math.imul(h ^ (h >>> 13), 3266489909)) >>> 0) / 4294967296; }
 
 function renderQuestList() {
   const p = qStore();
-  const total = quests.reduce((n, q) => n + (p[q.id]?.best || 0), 0), max = quests.reduce((n, q) => n + q.steps.length * 3, 0);
+  const total = quests.reduce((n, q) => n + (p[q.id]?.best || 0), 0), max = quests.reduce((n, q) => n + maxOf(q), 0);
   const tile = (q, st) => {
-    const n = q.steps.length, done = Math.min(st.step || 0, n), complete = done >= n;
+    const n = q.steps.length, done = Math.min(st.step || 0, n), complete = st.best !== undefined && !(st.step > 0 && st.step < n);
     return `<li class="q-tile l${q.level}${complete ? ' complete' : ''}">
       ${levelMark(q.level)}
       <h3>${esc(L10(q.title))}</h3><p>${esc(L10(q.intro))}</p>
-      <footer><span class="q-progress">${complete ? `${st.score || 0} / ${n * 3}` : `${done} / ${n}`}</span>
+      <footer><span class="q-progress">${complete ? `${t('Best')}: ${fmtN(st.best)}` : done ? `${done} / ${n}` : `${n} ${t('steps')}`}</span>
         <button class="q-start" data-q="${q.id}">${complete ? t('Play again') : done ? t('Continue') : t('Start')}</button></footer></li>`;
   };
   document.getElementById('quests-body').innerHTML = `
     <h2 id="quests-title">${t('Quests')}</h2>
-    <p class="q-lede">${t('Find buildings from riddles and old photos, guess their age with the colours switched off. Every answer is worth three crosses; hints and wrong answers cost one.')}</p>
-    <p class="q-score">${t('Your crosses')}: <b>${total}</b> / ${max}</p>
+    <p class="q-lede">${t('Find buildings from riddles and old photos, point to them on the map, guess their age with the colours switched off. Up to 100 points an answer; hints cost points.')}</p>
+    <p class="q-score">${t('Your points')}: <b>${fmtN(total)}</b> / ${fmtN(max)}</p>
     <ul class="q-grid">${quests.map(q => tile(q, p[q.id] || {})).join('')}</ul>`;
   questsDlg.querySelectorAll('.q-start').forEach(b => b.onclick = () => {
     const q = quests.find(q => q.id === b.dataset.q), st = qStore()[q.id] || {};
     questsDlg.close();
-    const fresh = !st.step || st.step >= q.steps.length;
-    startQuest(q, fresh ? 0 : st.step, fresh ? 0 : st.score || 0, fresh ? [] : st.marks || []);
+    const resume = st.step > 0 && st.step < q.steps.length;
+    rival = null;
+    startQuest(q, resume ? st.step : 0, resume ? st.score || 0 : 0, resume ? st.marks || [] : []);
   });
 }
 function openQuests() { renderQuestList(); questsDlg.showModal(); }
@@ -816,16 +837,49 @@ document.querySelector('.quests-open').onclick = openQuests;
 questsDlg.querySelector('.about-close').onclick = () => questsDlg.close();
 questsDlg.addEventListener('click', e => { if (e.target === questsDlg) questsDlg.close(); });
 
-// The search circle: a red ring on the ground around (not centred on) the answer.
+// A friend's challenge: ?quest=<id>&beat=<points> opens that quest once the city has loaded.
+let rival = null, cityLoaded = false, pendingQuest = null;
+function challengeFromUrl() {
+  const u = new URLSearchParams(location.search), q = quests.find(q => q.id === u.get('quest'));
+  if (!q) return;
+  rival = Number.isFinite(+u.get('beat')) && u.get('beat') !== null ? Math.max(0, Math.min(maxOf(q), +u.get('beat'))) : null;
+  pendingQuest = q;
+  if (cityLoaded) cityReady();
+}
+function cityReady() {
+  cityLoaded = true;
+  if (pendingQuest) { const q = pendingQuest; pendingQuest = null; startQuest(q, 0, 0, []); }
+}
+
+// On the ground: the search circle (red ring around, not centred on, the answer), and for "where" steps the
+// player's guess (a black dot), the answer (a red dot) and the line between them.
+const groundMat = (color, opacity = 1) => new THREE.MeshBasicMaterial({ color, depthTest: false, transparent: true, opacity });
+const onGround = m => { m.rotation.x = -Math.PI / 2; m.renderOrder = 20; return m; };
 const ring = new THREE.Group();
-ring.add(new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 128), new THREE.MeshBasicMaterial({ color: 0xec0000, depthTest: false, transparent: true, opacity: 0.95 })));
-ring.add(new THREE.Mesh(new THREE.CircleGeometry(0.97, 128), new THREE.MeshBasicMaterial({ color: 0xec0000, depthTest: false, transparent: true, opacity: 0.06 })));
-ring.children.forEach(m => { m.rotation.x = -Math.PI / 2; m.renderOrder = 20; });
+ring.add(onGround(new THREE.Mesh(new THREE.RingGeometry(0.97, 1, 128), groundMat(0xec0000, 0.95))));
+ring.add(onGround(new THREE.Mesh(new THREE.CircleGeometry(0.97, 128), groundMat(0xec0000, 0.06))));
 ring.visible = false;
 scene.add(ring);
+const pins = new THREE.Group();
+const guessDot = onGround(new THREE.Mesh(new THREE.CircleGeometry(1, 32), groundMat(0x000000)));
+const answerDot = onGround(new THREE.Mesh(new THREE.RingGeometry(0.55, 1, 32), groundMat(0xec0000)));
+const pinLine = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), groundMat(0x000000, 0.8));
+onGround(pinLine);
+pins.add(pinLine, guessDot, answerDot);
+pins.visible = false;
+scene.add(pins);
+function showPins(gx, gz, ax, az, d) {
+  const s = Math.max(10, d / 30);
+  guessDot.position.set(gx, 3, gz); guessDot.scale.setScalar(s * 0.8);
+  answerDot.position.set(ax, 3, az); answerDot.scale.setScalar(s * 1.2);
+  pinLine.position.set((gx + ax) / 2, 2.5, (gz + az) / 2);
+  pinLine.scale.set(Math.max(1, d), s * 0.25, 1);
+  pinLine.rotation.z = -Math.atan2(az - gz, ax - gx);
+  pins.visible = true;
+}
 
 let quest = null, step = 0, score = 0, marks = [], hintsShown = 0, tries = 0, solved = false, revealed = false, lastDist = null;
-let folded = false, guess = 1800;
+let folded = false, guess = 1800, missed = null;
 const qStep = () => quest.steps[step];
 const stepGids = s => s.bags.map(gidOf).filter(g => g >= 0);
 function centre(gids) {
@@ -840,7 +894,8 @@ function setQuiz(gid, blind) {
   uniforms.uBlind.value = gid < 0 ? 0 : blind ? 1 : 2;
   if (gid >= 0) { pinCard(-1); uniforms.uSelected.value = gid; }
 }
-const cardsLocked = () => quest && !solved && quizGid >= 0;
+// Cards stay closed while they would give the answer away: a building asked about, or any name in a "where" step.
+const cardsLocked = () => quest && !solved && (quizGid >= 0 || qStep().kind === 'where');
 
 function startQuest(q, n, sc = 0, mk = []) {
   quest = q; step = n; score = sc; marks = mk;
@@ -848,18 +903,20 @@ function startQuest(q, n, sc = 0, mk = []) {
   pinCard(-1);
   enterStep(true);
 }
+// The camera over the box around every building the quest visits.
+function overview() {
+  const bs = quest.steps.flatMap(stepGids).map(building);
+  const x0 = Math.min(...bs.map(b => b.x)), x1 = Math.max(...bs.map(b => b.x)), z0 = Math.min(...bs.map(b => b.z)), z1 = Math.max(...bs.map(b => b.z));
+  questFly((x0 + x1) / 2, (z0 + z1) / 2, Math.min(7000, Math.max(900, Math.hypot(x1 - x0, z1 - z0) * 1.5)));
+}
 function enterStep(first) {
-  hintsShown = 0; tries = 0; solved = false; revealed = false; lastDist = null; folded = false; guess = 1800;
-  ring.visible = false;
+  hintsShown = 0; tries = 0; solved = false; revealed = false; lastDist = null; folded = false; guess = 1800; missed = null;
+  ring.visible = false; pins.visible = false;
   const s = qStep(), gids = stepGids(s);
-  if (s.kind === 'find') {
+  if (s.kind === 'find' || s.kind === 'where') {
     setQuiz(-1, false);
-    if (first) {
-      // Open on the whole quest: every building it visits in view.
-      const all = quest.steps.flatMap(stepGids), [x, z] = centre(all);
-      const spread = Math.max(...all.map(g => { const b = building(g); return Math.hypot(b.x - x, b.z - z); }));
-      flyTo(x, z, null, Math.min(5200, Math.max(900, spread * 2.2)));
-    }
+    // A find quest opens on all of its buildings; every "where" step goes back to the whole city.
+    if (first || s.kind === 'where') overview();
   } else if (gids.length) {
     const b = building(gids[0]);
     setQuiz(gids[0], s.kind === 'year');
@@ -877,7 +934,7 @@ function questFly(x, z, dist, done = null) {
 }
 function closeQuest() {
   document.body.classList.remove('questing');
-  quest = null; questEl.hidden = true; ring.visible = false; setQuiz(-1, false);
+  quest = null; questEl.hidden = true; ring.visible = false; pins.visible = false; setQuiz(-1, false);
 }
 function setModeNamed(name) {
   document.querySelector(`.modes button[data-mode="${MODE[name]}"]`)?.click();
@@ -894,74 +951,77 @@ function showRing() {
 function photoOf(s) {
   if (s.clue?.id) return { src: `${SAA_IMG}640x480/${s.clue.thumb}.jpg`, credit: `${link(`https://archief.amsterdam/beeldbank/detail/${s.clue.id}`, 'Stadsarchief Amsterdam')}, ${s.clue.year}`, year: s.clue.year };
   if (s.clue?.thumb) return { src: s.clue.thumb, credit: link(s.clue.page || s.clue.thumb, [s.clue.artist, s.clue.license].filter(Boolean).join(', ') || 'Wikimedia Commons') };
-  if (s.photo) {
-    const g = stepGids(s)[0], b = g >= 0 && building(g), w = b && b.wk >= 0 ? wiki[b.wk] : null;
-    if (w?.image?.thumb) return { src: w.image.thumb, credit: link(w.image.page || w.image.thumb, [w.image.artist, w.image.license].filter(Boolean).join(', ') || 'Wikimedia Commons') };
-  }
   return null;
 }
 const progress = () => `<div class="q-steps">${quest.steps.map((_, i) => `<i class="${i < step || (i === step && solved) ? 'done' : i === step ? 'now' : ''}"></i>`).join('')}
-  <span>${step + 1} / ${quest.steps.length}</span></div>`;
+  <span>${fmtN(score)} ${t('pts')}</span></div>`;
+// Points: a find loses 25 a hint (never below 25); a choice gives 100, 40, then nothing; a year guess and a
+// "where" tap lose points smoothly with the distance.
+const HINT_COST = 25;
 const worth = () => {
   const s = qStep();
-  if (s.kind === 'find') return revealed ? 0 : Math.max(1, 3 - hintsShown);
-  if (s.kind === 'choice') return [3, 1, 0][Math.min(tries, 2)];
-  return 3;
+  if (s.kind === 'find') return revealed ? 0 : Math.max(25, 100 - HINT_COST * hintsShown);
+  if (s.kind === 'choice') return [100, 40, 0][Math.min(tries, 2)];
+  return 100;
 };
-function yearPoints(d) { return d <= 5 ? 3 : d <= 20 ? 2 : d <= 50 ? 1 : 0; }
+const yearPoints = d => Math.round(100 * Math.exp(-d / 30));
+const wherePoints = m => Math.round(100 * Math.exp(-m / 450));
+const fmtDist = m => m < 1000 ? `${Math.round(m / 10) * 10} m` : `${(m / 1000).toLocaleString(fmtLocale(), { maximumFractionDigits: 1 })} km`;
 
 function renderQuest() {
   if (!quest) return;
   const s = qStep(), ph = photoOf(s);
-  const title = esc(L10(quest.title));
   questEl.className = `quest k-${s.kind}${solved ? ' solved' : ''}${folded ? ' folded' : ''}`;
+  // Once answered, a "where" step drops its photo so the map shows the guess and the answer.
+  const photo = ph && !(solved && (s.clue?.id || s.kind === 'where')) ? `<figure class="q-photo"><img src="${esc(ph.src)}" alt="${t('A photo of the building')}">${ph.year ? `<span class="year">${ph.year}</span>` : ''}</figure><p class="q-credit">${ph.credit}</p>` : '';
   let body = '';
   if (s.kind === 'find') {
     const hints = Array.from({ length: hintsShown }, (_, i) => i === 0 ? t('Look inside the red circle.') : L10(s.hints[i - 1]));
     const more = hintsShown < s.hints.length + 1;
-    body = `
-      ${ph && !solved ? `<figure class="q-photo${s.clue?.id ? ' old' : ''}"><img src="${esc(ph.src)}" alt="${t('A photo of the building to find')}">${ph.year ? `<span class="year">${ph.year}</span>` : ''}</figure><p class="q-credit">${ph.credit}</p>` : ''}
+    body = `${photo}
       <p class="q-riddle">${esc(L10(s.riddle))}</p>
       ${hints.length ? `<ul class="q-hints">${hints.map(h => `<li>${esc(h)}</li>`).join('')}</ul>` : ''}
-      ${solved ? '' : `<p class="q-feedback">${t('Find it on the map and click it.')}</p>`}
-      ${solved ? '' : `<div class="q-actions">
-        ${more ? `<button class="q-hint">${t('Hint')} <small>−×</small></button>` : ''}
+      ${solved ? '' : `<p class="q-feedback">${t('Find it on the map and click it.')}</p>
+      <div class="q-actions">
         ${s.mode ? `<button class="q-mode">${t(s.mode === 'floors' ? 'Colour by floors' : 'Colour by period')}</button>` : ''}
-        <button class="q-reveal">${t('Show me')}</button>
-        <span class="q-worth">${crosses(worth())}</span></div>`}`;
+        <span class="q-quiet">${more ? `<button class="q-hint">${t('Hint')} −${HINT_COST}</button>` : ''}<button class="q-reveal">${t('Show me')}</button></span></div>`}`;
+  } else if (s.kind === 'where') {
+    body = `${photo}<p class="q-riddle">${esc(L10(s.riddle))}</p>
+      ${solved ? '' : `<p class="q-feedback">${t('Tap the map where you think it stands.')}</p>`}`;
   } else if (s.kind === 'year') {
-    body = `
-      ${ph ? `<figure class="q-photo"><img src="${esc(ph.src)}" alt=""></figure><p class="q-credit">${ph.credit}</p>` : ''}
+    body = `${photo}
       <p class="q-riddle">${esc(L10(s.ask))}</p>
       ${solved ? '' : `<div class="q-year"><output>${guess}</output>
         <input type="range" min="1250" max="2025" step="1" value="${guess}" aria-label="${t('Your guess')}">
         <div class="q-scale"><span>1250</span><span>1500</span><span>1750</span><span>2000</span></div></div>
-        <div class="q-actions"><button class="primary q-guess">${t('Guess')}</button><span class="q-worth">${crosses(3)}</span></div>`}`;
+        <div class="q-actions"><button class="primary q-guess">${t('Guess')}</button></div>`}`;
   } else {
     const order = s.options.map((o, i) => i).sort((a, b) => rng(quest.id + step + a)() - rng(quest.id + step + b)());
     body = `
       <p class="q-riddle">${esc(L10(s.ask))}</p>
       <div class="q-options">${order.map(i => `<button data-i="${i}" ${solved ? 'disabled' : ''} class="${solved && i === 0 ? 'right' : ''}">${esc(L10(s.options[i]))}</button>`).join('')}</div>
-      ${solved ? '' : `<div class="q-actions"><span class="q-feedback"></span><span class="q-worth">${crosses(worth())}</span></div>`}`;
+      ${solved ? '' : `<p class="q-feedback"></p>`}`;
   }
   questEl.innerHTML = `
     <button class="q-close" aria-label="${t('Close')}">×</button>
-    <header><b>${title}</b>${levelMark(quest.level)}</header>
-    ${progress()}${body}${solved ? revealHtml(s) : ''}`;
+    <header><b>${esc(L10(quest.title))}</b>${levelMark(quest.level)}</header>
+    ${progress()}${rival !== null && step === 0 && !solved ? `<p class="q-rival">${t('Score to beat')}: <b>${fmtN(rival)}</b></p>` : ''}${body}${solved ? revealHtml(s) : ''}`;
   questEl.hidden = false;
   wireQuest(s);
 }
 function revealHtml(s) {
   const got = marks[step] ?? 0, last = step === quest.steps.length - 1;
   const g = stepGids(s)[0], b = g >= 0 ? building(g) : null;
-  const extra = s.kind === 'year' ? `<p class="q-yeardiff">${t('Your guess')}: <b>${guess}</b>. ${t('Built')}: <b>${s.year}</b>. ${Math.abs(guess - s.year) === 0 ? t('Exactly right.') : `${Math.abs(guess - s.year)} ${t(Math.abs(guess - s.year) === 1 ? 'year off' : 'years off')}.`}</p>` : '';
+  const d = Math.abs(guess - (s.year || 0));
+  const extra = s.kind === 'year' ? `<p class="q-yeardiff">${t('Your guess')}: <b>${guess}</b>. ${t('Built')}: <b>${s.year}</b>. ${d === 0 ? t('Exactly right.') : `${d} ${t(d === 1 ? 'year off' : 'years off')}.`}</p>`
+    : s.kind === 'where' && missed !== null ? `<p class="q-yeardiff">${missed < 30 ? t('Spot on.') : `${fmtDist(missed)} ${t('off')}.`}</p>` : '';
   const then = s.clue?.id && b ? `<div class="q-then"><figure><img src="${esc(photoOf(s).src)}" alt=""><figcaption>${s.clue.year}</figcaption></figure>${
     b.wk >= 0 && wiki[b.wk]?.image?.thumb ? `<figure><img src="${esc(wiki[b.wk].image.thumb)}" alt=""><figcaption>${t('Today')}</figcaption></figure>` : ''}</div>` : '';
   return `<div class="q-found">
-    <div class="q-stamp" aria-hidden="true">${crosses(got)}</div>
+    <div class="q-stamp${got === 100 ? ' full' : ''}" aria-label="${got} ${t('pts')}">+${got}</div>
     ${then}${extra}
     <p>${esc(L10(s.reveal))}${s.sources?.length ? ' ' + s.sources.map((u, i) => link(u, s.sources.length > 1 ? `${t('Source')} ${i + 1}` : t('Source'))).join(', ') : ''}</p>
-    <p class="q-earned">${revealed ? t('Shown, not found: no crosses.') : got === 3 ? t('Full marks.') : ''}</p></div>
+    ${revealed ? `<p class="q-earned">${t('Shown, not found: no points.')}</p>` : ''}</div>
     <div class="q-actions">${last ? `<button class="primary q-finish">${t('See the result')}</button>`
       : `<button class="primary q-next">${t('Next')}</button>`}<button class="q-card">${t('Open its card')}</button></div>`;
 }
@@ -969,7 +1029,7 @@ function wireQuest(s) {
   questEl.querySelector('header').onclick = () => { folded = !folded; questEl.classList.toggle('folded', folded); };
   questEl.querySelector('.q-close').onclick = closeQuest;
   const foldOnPhone = () => { if (phone.matches) { folded = true; questEl.classList.add('folded'); } };
-  questEl.querySelector('.q-hint')?.addEventListener('click', () => { hintsShown++; if (hintsShown === 1) { showRing(); foldOnPhone(); } renderQuest(); if (phone.matches && hintsShown === 1) { folded = true; questEl.classList.add('folded'); } });
+  questEl.querySelector('.q-hint')?.addEventListener('click', () => { hintsShown++; if (hintsShown === 1) showRing(); renderQuest(); if (hintsShown === 1) foldOnPhone(); });
   questEl.querySelector('.q-mode')?.addEventListener('click', () => { setModeNamed(s.mode); foldOnPhone(); });
   questEl.querySelector('.q-reveal')?.addEventListener('click', () => {
     const g = stepGids(s)[0]; if (g === undefined) return;
@@ -982,15 +1042,13 @@ function wireQuest(s) {
   questEl.querySelectorAll('.q-options button').forEach(b => b.onclick = () => {
     if (+b.dataset.i === 0) { b.classList.add('right'); solve(stepGids(s)[0]); return; }
     tries++; b.classList.add('wrong'); b.disabled = true;
-    questEl.querySelector('.q-actions .q-worth').innerHTML = crosses(worth());
-    const fb = questEl.querySelector('.q-feedback'); fb.textContent = t('Not that one.'); fb.classList.remove('miss'); void fb.offsetWidth; fb.classList.add('miss');
+    const fb = questEl.querySelector('.q-feedback'); fb.textContent = `${t('Not that one.')} −${100 - worth()}`; fb.classList.remove('miss'); void fb.offsetWidth; fb.classList.add('miss');
   });
   questEl.querySelector('.q-next')?.addEventListener('click', () => { step++; qSave(quest.id, { step, score, marks }); enterStep(false); });
   questEl.querySelector('.q-finish')?.addEventListener('click', finished);
-  questEl.querySelector('.q-card')?.addEventListener('click', () => { const g = stepGids(s)[0]; const b = building(g); quizGid = -1; uniforms.uBlind.value = 0; flyTo(b.x, b.z, () => pinCard(g, innerWidth * 0.3, 120), 380); });
+  questEl.querySelector('.q-card')?.addEventListener('click', () => { const g = stepGids(s)[0]; const b = building(g); quizGid = -1; uniforms.uBlind.value = 0; pins.visible = false; flyTo(b.x, b.z, () => pinCard(g, innerWidth * 0.3, 120), 380); });
 }
 function solve(gid, points) {
-  const s = qStep();
   solved = true; folded = false; ring.visible = false;
   const got = points ?? worth();
   marks[step] = got; score += got;
@@ -1003,24 +1061,33 @@ function solve(gid, points) {
   qSave(quest.id, patch);
   renderQuest();
 }
-// The result, and a line to share: one group of crosses per step, a dot for each one lost.
+// The result: the score, a bar per answer, and a challenge to send: a link that opens this quest with the score to beat.
 function finished() {
-  const n = quest.steps.length, line = marks.map(m => '×'.repeat(m) + '·'.repeat(3 - m)).join(' ');
-  const text = `LAYRS: Amsterdam · ${L10(quest.title)}\n${line}\n${score} / ${n * 3}\nhttps://stop-token.com/lab/amsterdam/`;
-  const verdict = score >= n * 3 - 1 ? 'A true Amsterdammer.' : score >= n * 2 ? 'You know your way around.' : score >= n ? 'A good walk.' : 'Time for a walk through town.';
+  const max = maxOf(quest), share = Math.round(100 * score / max);
+  const verdict = share >= 90 ? 'A true Amsterdammer.' : share >= 70 ? 'You know your way around.' : share >= 45 ? 'A good walk.' : 'Time for a walk through town.';
+  const url = `https://stop-token.com/lab/amsterdam/?quest=${quest.id}&beat=${score}${LANG === 'nl' ? '&lang=nl' : ''}`;
+  const text = LANG === 'nl'
+    ? `Ik haalde ${fmtN(score)} van de ${fmtN(max)} punten in '${L10(quest.title)}' op LAYRS: Amsterdam. Doe je beter?`
+    : `I scored ${fmtN(score)} of ${fmtN(max)} in '${L10(quest.title)}' on LAYRS: Amsterdam. Can you beat it?`;
+  const vs = rival === null ? '' : `<p class="q-vs">${score > rival ? t('You beat your friend') : score === rival ? t('A draw with your friend') : t('Your friend wins this time')}: ${fmtN(score)} – ${fmtN(rival)}</p>`;
   questEl.className = 'quest done';
   questEl.innerHTML = `
     <button class="q-close" aria-label="${t('Close')}">×</button>
-    <header><b>${esc(L10(quest.title))}</b></header>
-    <div class="q-result"><p class="q-total"><b>${score}</b> / ${n * 3}</p><p class="q-verdict">${t(verdict)}</p>
-      <p class="q-line" aria-label="${score} / ${n * 3}">${line}</p></div>
-    <div class="q-actions"><button class="primary q-share">${t('Copy result')}</button><button class="q-list">${t('More quests')}</button></div>`;
+    <header><b>${esc(L10(quest.title))}</b>${levelMark(quest.level)}</header>
+    <div class="q-result"><p class="q-total"><b>${fmtN(score)}</b> / ${fmtN(max)}</p><p class="q-verdict">${t(verdict)}</p>${vs}
+      <div class="q-bars" aria-hidden="true">${marks.map(m => `<i style="height:${Math.max(4, m)}%" class="${m === 100 ? 'full' : ''}"></i>`).join('')}</div></div>
+    <div class="q-actions"><button class="primary q-share">${t('Challenge a friend')}</button><button class="q-list">${t('More quests')}</button></div>
+    <p class="q-shared" hidden></p>`;
   questEl.hidden = false;
-  ring.visible = false; setQuiz(-1, false);
+  ring.visible = false; pins.visible = false; setQuiz(-1, false);
+  rival = null;
   questEl.querySelector('.q-close').onclick = closeQuest;
   questEl.querySelector('.q-list').onclick = () => { closeQuest(); openQuests(); };
   questEl.querySelector('.q-share').onclick = async e => {
-    try { await navigator.clipboard.writeText(text); e.target.textContent = t('Copied'); } catch { e.target.textContent = text.split('\n')[1]; }
+    const note = questEl.querySelector('.q-shared');
+    if (navigator.share && phone.matches) { try { await navigator.share({ title: 'LAYRS: Amsterdam', text, url }); return; } catch {} }
+    try { await navigator.clipboard.writeText(`${text}\n${url}`); e.target.textContent = t('Link copied'); }
+    catch { note.hidden = false; note.textContent = `${text} ${url}`; }
   };
 }
 // Every click on the map while a find step is open.
@@ -1039,6 +1106,19 @@ function questClick(gid) {
   fb.textContent = msg.trim();
   fb.className = `q-feedback ${d < 40 ? 'hot' : d < 200 ? 'warm' : 'cold'}`;
   void fb.offsetWidth; fb.classList.add('miss');
+}
+// A tap anywhere on the ground in a "where" step: the guess, scored by its distance from the building.
+const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0), caster = new THREE.Raycaster();
+function whereClick(cx, cy) {
+  const r = canvas.getBoundingClientRect(), hit = new THREE.Vector3();
+  caster.setFromCamera(new THREE.Vector2(((cx - r.left) / r.width) * 2 - 1, -((cy - r.top) / r.height) * 2 + 1), camera);
+  if (!caster.ray.intersectPlane(groundPlane, hit)) return;
+  const s = qStep(), gids = stepGids(s);
+  const near = gids.map(g => building(g)).sort((a, b) => Math.hypot(a.x - hit.x, a.z - hit.z) - Math.hypot(b.x - hit.x, b.z - hit.z))[0];
+  missed = Math.hypot(near.x - hit.x, near.z - hit.z);
+  showPins(hit.x, hit.z, near.x, near.z, missed);
+  questFly((hit.x + near.x) / 2, (hit.z + near.z) / 2, Math.min(7000, Math.max(500, missed * (phone.matches ? 4 : 2))));
+  solve(gids[0], wherePoints(missed));
 }
 addEventListener('keydown', e => { if (e.key === 'Escape' && questsDlg.open) questsDlg.close(); });
 

@@ -4,6 +4,7 @@
           then name the street; "Show me" flies there for no tiles.
   year    the map flies to a building and hides its age (colours and card); the player guesses the year it was built.
   choice  the map flies to a building; the player picks one of three answers.
+  where   a photo and a name; the player taps the map where it stands and scores by distance.
 
 Every claim rests on a source that s13_quests.py checks: an article that must contain the given strings, or a story
 of a context layer already checked by s08_curated. Where a step names a year, that year must also be the map's year
@@ -38,12 +39,62 @@ def choice(at, ask, options, reveal, checks=()):
     return dict(kind="choice", at=at, ask=ask, options=options, reveal=reveal, checks=list(checks))
 
 
+def where(at, name, reveal, checks):
+    """A photo and a name; the player taps the map where they think it stands and scores by distance."""
+    return dict(kind="where", at=at, riddle=T(f"Where is {name[0]}?", f"Waar staat {name[1]}?"), reveal=reveal,
+                checks=list(checks), clue="today")
+
+
 def archive(id, thumb, year):
     return dict(id=id, thumb=thumb, year=year)
 
 
 QUESTS = [
     # ---------------------------------------------------------------- easy
+    dict(id="where", level=1,
+         title=T("Where is it?", "Waar staat het?"),
+         intro=T("Eight famous buildings. Tap the map where you think each one stands: the closer, the more points.",
+                 "Acht bekende gebouwen. Tik op de kaart waar je denkt dat ze staan: hoe dichterbij, hoe meer punten."),
+         steps=[
+             where("wd:nl:Station Amsterdam Centraal", ("Centraal Station", "het Centraal Station"),
+                   T("Opened on 15 October 1889, on three artificial islands in the IJ.",
+                     "Geopend op 15 oktober 1889, op drie kunstmatige eilanden in het IJ."),
+                   [("nl:Station Amsterdam Centraal", ["15 oktober 1889", "drie kunstmatige eilanden"])]),
+             where("wd:nl:Westerkerk (Amsterdam)", ("the Westerkerk", "de Westerkerk"),
+                   T("On the Prinsengracht. Rembrandt was buried here in 1669; nobody knows where his grave is.",
+                     "Aan de Prinsengracht. Rembrandt werd hier in 1669 begraven; niemand weet waar zijn graf ligt."),
+                   [("nl:Westerkerk (Amsterdam)", ["Prinsengracht", "plaats van het graf onbekend"])]),
+             where("addr:Museumstraat 1", ("the Rijksmuseum", "het Rijksmuseum"),
+                   T("Pierre Cuypers' building, home of the museum since 1885.",
+                     "Het gebouw van Pierre Cuypers, sinds 1885 het onderkomen van het museum."),
+                   [("nl:Rijksmuseum Amsterdam", ["sinds 1885 gevestigd in het Rijksmuseumgebouw", "Pierre Cuypers"])]),
+             where("wd:nl:Koninklijk Theater Carré", ("Carré", "Carré"),
+                   T("On the Amstel. It opened on 3 December 1887 as Oscar Carré's stone circus.",
+                     "Aan de Amstel. Het opende op 3 december 1887 als het stenen circus van Oscar Carré."),
+                   [("nl:Koninklijk Theater Carré", ["3 december 1887", "Oscar Carré", "Amstel"])]),
+             where("wd:nl:Zuiderkerk (Amsterdam)", ("the Zuiderkerk", "de Zuiderkerk"),
+                   T("Near the Nieuwmarkt: the first church in Amsterdam designed for Protestant worship, in use from 1611.",
+                     "Bij de Nieuwmarkt: de eerste kerk in Amsterdam die voor de protestantse eredienst werd "
+                     "ontworpen, in gebruik vanaf 1611."),
+                   [("nl:Zuiderkerk (Amsterdam)", ["eerste voor de protestantse eredienst", "1611"])]),
+             where("wd:nl:Amstel Hotel", ("the Amstel Hotel", "het Amstel Hotel"),
+                   T("On the Amstel by the Sarphatistraat. In use since the summer of 1867, the first hotel of "
+                     "international standing in Amsterdam.",
+                     "Aan de Amstel bij de Sarphatistraat. In gebruik sinds de zomer van 1867, de eerste "
+                     "logeergelegenheid op internationaal niveau in Amsterdam."),
+                   [("nl:Amstel Hotel", ["zomer van 1867", "Sarphatistraat",
+                                         "eerste logeergelegenheid op internationaal niveau"])]),
+             where("wd:nl:12-verdiepingenhuis", ("the Wolkenkrabber", "de Wolkenkrabber"),
+                   T("In the Rivierenbuurt: twelve storeys of flats from 1932.",
+                     "In de Rivierenbuurt: twaalf verdiepingen woningen uit 1932."),
+                   [("nl:12-verdiepingenhuis", ["Rivierenbuurt", "uit 1932"])]),
+             where("wd:nl:De Dageraad (Amsterdam)", ("De Dageraad", "De Dageraad"),
+                   T("In Plan Zuid: 294 homes and six shops by Michel de Klerk and Piet Kramer, for a socialist "
+                     "housing association.",
+                     "In Plan Zuid: 294 woningen en zes winkels van Michel de Klerk en Piet Kramer, voor een "
+                     "socialistische woningbouwvereniging."),
+                   [("nl:De Dageraad (Amsterdam)", ["294 woningen en zes winkels", "Plan Zuid", "socialistische"])]),
+         ]),
     dict(id="dam", level=1,
          title=T("Around the Dam", "Rond de Dam"),
          intro=T("Five buildings within a few minutes' walk of the city's main square. A gentle start.",
