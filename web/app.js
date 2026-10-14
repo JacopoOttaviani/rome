@@ -704,12 +704,13 @@ function stepSpin(now) {
   if (k >= 1) spin = null;
 }
 
-// ---------- Turning on its own (?spin) ----------
-// index.html?spin turns the city slowly, one turn every 90 s, while it loads and after, until the reader takes over:
+// ---------- Turning on its own ----------
+// The city turns slowly, one turn every 90 s, while it loads and after, until the reader takes over:
 // a drag, click or wheel on the map, a story in the panel or the compass. Colourings, the timeline and Play keep it turning.
+// ?spin=0 keeps it still, and so does a reader who asks for reduced motion.
 // Timed by the clock, not by frames, so it turns at the same speed at 60 Hz and 120 Hz.
 const TURN = 2 * Math.PI / 90;
-let turning = new URLSearchParams(location.search).has('spin') && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+let turning = new URLSearchParams(location.search).get('spin') !== '0' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 let turnT0 = -1, turnLast = 0;
 controls.addEventListener('start', () => turning = false);
 function stepTurn(now) {

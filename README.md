@@ -3,8 +3,8 @@
 Every building standing in Rome in 2014, the year of the region's latest survey, 250,000 of them with the Vatican
 City inside it, and 708 finished since, by age and historical context: a 3D map built entirely from open data.
 
-**See it:** [jacopoottaviani.com/rome-over-time](https://jacopoottaviani.com/rome-over-time/). Add `?spin` to the address
-and the city turns slowly on its own until you touch it.
+**See it:** [jacopoottaviani.com/rome-over-time](https://jacopoottaviani.com/rome-over-time/). The city turns slowly on its
+own until you touch it; add `?spin=0` to the address to keep it still.
 
 Made with 💙 by [Jacopo Ottaviani](https://jacopoottaviani.com), data journalist and computer scientist. If it's useful to you,
 [buy me a coffee](https://ko-fi.com/jacopoottaviani).
