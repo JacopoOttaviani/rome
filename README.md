@@ -51,6 +51,8 @@ generated output (`web/data/`) are not in the repository: they are rebuilt by th
 
 `scripts/publish.sh` puts `web/`, with its data, on the `gh-pages` branch that GitHub Pages serves at
 jacopoottaviani.com/rome-over-time. The branch is rebuilt from scratch each time, so the data never piles up in the history.
+`node scripts/og-image.mjs` renders the link-preview image that WhatsApp and Slack show (`web/og-image.jpg`) from the
+live site with the Chrome on this machine; run it again after the data changes, then publish.
 
 ## Data decisions
 
