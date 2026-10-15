@@ -54,7 +54,8 @@ def city_outline():
     return rome, sea
 
 
-def main():
+def water_and_land():
+    """The city outline, and its water (rivers, lakes, the sea) and land as lists of polygons; s08_terrain reuses them."""
     city, sea = city_outline()
     frames = []
     for f in glob.glob("data/raw/dbt/*/AB_CDA_AB_CDA_SUP.shp") + glob.glob("data/raw/dbt/*/SP_ACQ.shp"):
@@ -66,6 +67,11 @@ def main():
     water = [p for p in polygons(water) if p.area > 30]
     land = city.difference(shapely.MultiPolygon(water)).simplify(1.0)
     land = [p for p in polygons(land) if p.area > 30]
+    return city, water, land
+
+
+def main():
+    city, water, land = water_and_land()
     (OUT / "water.bin").write_bytes(pack(water))
     (OUT / "land.bin").write_bytes(pack(land))
     gpd.GeoDataFrame(geometry=[city], crs=CRS).to_parquet("data/outline.parquet")

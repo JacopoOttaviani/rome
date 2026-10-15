@@ -36,13 +36,14 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s03_tiles` | Packs 600 m tiles into 8 bundles, writes per-building attributes and the city config |
 | `s04_water` | Water, the sea off Ostia, and the city outline |
 | `s07_labels` | Street, square and river names placed along their lines |
+| `s00_fetch_contours`, `s08_terrain` | The DBGT's contour lines, and from them and the buildings' bases a 40 m elevation grid for the hills view |
 
 ## Run it
 
 ```bash
 uv sync     # or: python3 -m venv .venv && .venv/bin/pip install geopandas numpy pandas pyarrow pyogrio pyproj requests scipy shapely
-for s in s00_fetch_dbt s00_fetch_istat s00_fetch_wikidata s00_fetch_osm s00_fetch_ispra; do uv run python -m pipeline.$s; done
-for s in s01_load s02_attributes s05_layers s06_wiki s03_tiles s04_water s07_labels; do uv run python -m pipeline.$s; done
+for s in s00_fetch_dbt s00_fetch_contours s00_fetch_istat s00_fetch_wikidata s00_fetch_osm s00_fetch_ispra; do uv run python -m pipeline.$s; done
+for s in s01_load s02_attributes s05_layers s06_wiki s03_tiles s04_water s07_labels s08_terrain; do uv run python -m pipeline.$s; done
 python3 -m http.server 8642 --directory web
 ```
 
@@ -102,6 +103,13 @@ live site with the Chrome on this machine; run it again after the data changes, 
   say so. A building newer than the survey takes its OpenStreetMap height, else its storeys × 3.2 m, else the median
   height of its twelve nearest DBGT buildings (sheds and kiosks aside), on the ground of the nearest; its card says
   which.
+- **Hills.** The button under the compass lifts the city onto its relief; the default view stays flat. The relief is the
+  2014 survey's own: its contour lines (every 5 m, CC BY 4.0) and, where they stop at the built-up city, the base of
+  every building's volumes, thinned to one value per 20 m, triangulated, read every 40 m and lightly smoothed. Heights
+  are doubled so the seven hills, the Gianicolo and Monte Mario read beside the buildings (Monte Mario 140 m, the
+  Gianicolo 85 m, the Palatine 47 m on the grid); the smallest summits lose a few metres to the 40 m grid (the
+  Capitoline: 38 m for 46). Each building stands on the ground at its centre, with a 4 m footing for slopes; the Tiber
+  follows its valley, and thin lines mark every 10 m of real height, stronger every 50 m.
 - **The Vatican City** has no Italian municipality code in the DBGT (its buildings carry 058000) and is kept, so the
   map has no hole at St Peter's.
 - **Not included** from the Amsterdam original: energy labels (Italy publishes none per building; the fourth colouring

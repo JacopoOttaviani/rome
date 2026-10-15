@@ -34,17 +34,10 @@
 </head>
 <body>
 <canvas id="scene" aria-label="3D map of Rome's buildings"></canvas>
-<div class="veil veil-top" aria-hidden="true"></div>
-<div class="veil veil-bottom" aria-hidden="true"></div>
 
 <header class="masthead">
   <div>
     <h1>Roma</h1>
-    <div class="masthead-note">
-    <p class="dek">Every building standing in 2014, and hundreds built since, by age and historical context.</p>
-    <p class="byline-top"><span class="by">Made with 💙 by</span> <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a></p>
-    <p class="ctas"><a class="cta cta-coffee" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="steam" d="M7.5 6.2c-.9-1 .9-1.8 0-3"/><path class="steam" d="M10.5 6.2c-.9-1 .9-1.8 0-3"/><path d="M3.5 8h11v4a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z"/><path d="M14.5 9h1a2 2 0 0 1 0 4h-1"/></svg><span>Buy me a coffee</span></a><a class="cta cta-in" href="https://www.linkedin.com/in/jacopo-ottaviani/" target="_blank" rel="noopener" title="Follow me on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg><span>LinkedIn</span></a></p>
-    </div>
   </div>
 </header>
 
@@ -151,6 +144,10 @@
     <circle class="hub" r="1.6"/>
   </svg>
 </button>
+<button class="terrain-toggle" aria-pressed="false" aria-label="Show the hills" title="Show the hills">
+  <svg viewBox="0 0 20 14" aria-hidden="true"><path d="M1 13 7 4.5l3.2 4.3L13 5l6 8z"/><path d="M5.6 6.6 7 4.5l1.5 2" class="snow"/></svg>
+  <span>Hills</span>
+</button>
 
 <aside id="panel" class="panel">
   <button class="sheet-handle" aria-expanded="true" aria-controls="panel-body">Show legend</button>
@@ -161,10 +158,17 @@
 <p class="howto">Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.</p>
 
 <footer class="timeline">
-  <button id="play" class="play" aria-label="Play the city's growth">
-    <svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg>
-  </button>
-  <canvas id="hist" aria-label="Buildings per year; drag to set the year"></canvas>
+  <div class="hist-card">
+    <button id="play" class="play" aria-label="Play the city's growth" aria-pressed="false">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg>
+    </button>
+    <canvas id="hist" aria-label="Buildings per year; drag to set the year"></canvas>
+  </div>
+  <div class="masthead-note">
+    <p class="dek">Every building standing in 2014, and hundreds built since, by age and historical context.</p>
+    <p class="byline-top"><span class="by">Made with 💙 by</span> <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a></p>
+    <p class="ctas"><a class="cta cta-coffee" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="steam" d="M7.5 6.2c-.9-1 .9-1.8 0-3"/><path class="steam" d="M10.5 6.2c-.9-1 .9-1.8 0-3"/><path d="M3.5 8h11v4a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z"/><path d="M14.5 9h1a2 2 0 0 1 0 4h-1"/></svg><span>Buy me a coffee</span></a><a class="cta cta-in" href="https://www.linkedin.com/in/jacopo-ottaviani/" target="_blank" rel="noopener" title="Follow me on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg><span>LinkedIn</span></a></p>
+  </div>
 </footer>
 
 <div id="loading" class="loading">

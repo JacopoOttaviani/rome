@@ -8,10 +8,10 @@ THREE.ColorManagement.enabled = false;
 const THEMES = {
   light: { sky: '#e4e8ea', land: '#f4f3ef', water: '#b5c7c6', maquette: '#efeee9', minor: null,
     street: ['#50565b', 'rgba(244,243,239,0.85)'], river: ['#3c6875', 'rgba(181,199,198,0.85)'],
-    histText: '#5d6266', histMark: '#000000', histGrey: '#b9c0c4' },
+    histText: '#5d6266', histMark: '#000000', histGrey: '#b9c0c4', contour: '#8c8270' },
   dark: { sky: '#121417', land: '#1a1d21', water: '#1d3439', maquette: '#2c3034', minor: '#4d5359',
     street: ['#b3b9bd', 'rgba(26,29,33,0.85)'], river: ['#8ab6bf', 'rgba(29,52,57,0.85)'],
-    histText: '#9aa1a6', histMark: '#f2f2ef', histGrey: '#3a3f44' },
+    histText: '#9aa1a6', histMark: '#f2f2ef', histGrey: '#3a3f44', contour: '#59616a' },
 };
 // The reader's choice (data-theme, set before the first paint from localStorage), else the system's.
 const darkQuery = matchMedia('(prefers-color-scheme: dark)');
@@ -93,6 +93,7 @@ const IT_UI = {
   'Newer than the region’s 2014 survey: the footprint is from OpenStreetMap. The year is when ISPRA’s land maps first show a building here, a window where the maps skip years (there are none for 2013–14). That is when the structure is visible from above, often a year or two before it opens.':
     'Più recente del rilievo regionale del 2014: la pianta è di OpenStreetMap. L’anno è quello in cui le mappe del suolo dell’ISPRA mostrano per la prima volta un edificio qui, un intervallo dove le mappe saltano degli anni (non ce ne sono per il 2013–14). È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura.',
   'Follow me on LinkedIn': 'Seguimi su LinkedIn',
+  'Hills': 'Colli', 'Show the hills': 'Mostra i colli', 'Flatten the city': 'Torna in piano',
 };
 let LANG = (() => {
   const q = new URLSearchParams(location.search).get('lang');
@@ -227,7 +228,7 @@ function updateLabels(dist) {
       l.mesh = new THREE.Mesh(labelPlane, new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false }));
       // Turn about the vertical first, then lay the plane flat.
       l.mesh.rotation.set(-Math.PI / 2, THREE.MathUtils.degToRad(-l.ang), 0, "YXZ"); // ang is measured towards +z, Y turns towards -z
-      l.mesh.position.set(l.x, l.L.water ? 0.4 : 0.6, l.z);
+      l.mesh.position.set(l.x, labelY(l), l.z);
       l.mesh.renderOrder = 2;
       labelGroup.add(l.mesh);
     }
@@ -268,12 +269,15 @@ const uniforms = {
   uSelected: { value: -1 },
   uFogColor: { value: col(TH.sky) },
   uFog: { value: new THREE.Vector2(9000, 26000) },
+  uTerrain: { value: 0 },                          // 0 flat, 1 on the hills (see Hills)
+  uGround: { value: new THREE.DataTexture(new Float32Array(1), 1, 1, THREE.RedFormat, THREE.FloatType) },
 };
 
 const VERT = /* glsl */`
   in float bld;
   uniform sampler2D uAttr;
-  uniform float uYear, uYearFrom, uMode, uHover, uSelected, uNow, uBorn, uPlaying, uRise, uLayerAt;
+  uniform float uYear, uYearFrom, uMode, uHover, uSelected, uNow, uBorn, uPlaying, uRise, uLayerAt, uTerrain;
+  uniform sampler2D uGround;
   uniform vec3 uPalette[${periods.length}];
   uniform float uMask[${periods.length}];
   uniform int uGroupBit[${MAX_GROUPS}];
@@ -283,6 +287,7 @@ const VERT = /* glsl */`
   out vec3 vColor;
   out vec3 vWorld;
   out float vGid;
+  out float vLift;
 
   vec3 floorsRamp(float f) {
     float t = clamp(log(f) / log(40.0), 0.0, 1.0);
@@ -349,6 +354,14 @@ const VERT = /* glsl */`
     if (year <= uYearFrom) c = mix(c, uMaquette, 0.8);
     if (vGid == uHover || vGid == uSelected) c = mix(c, vec3(0.0), 0.35);
     vColor = c;
+    // The hills view: a building stands on the ground at its centre, with a 4 m footing so it meets a slope.
+    // Positions are in decimetres; the ground texture holds metres, already exaggerated (see Hills).
+    vLift = 0.0;
+    if (uTerrain > 0.0) {
+      int gi = int(a.w + 0.5);
+      vLift = uTerrain * texelFetch(uGround, ivec2(gi % 1024, gi / 1024), 0).r;
+      p.y += vLift * 10.0 - (position.y < 0.5 ? 40.0 * uTerrain : 0.0);
+    }
     vec4 w = modelMatrix * vec4(p, 1.0);
     vWorld = w.xyz;
     gl_Position = projectionMatrix * viewMatrix * w;
@@ -362,6 +375,7 @@ const FRAG = /* glsl */`
   in vec3 vColor;
   in vec3 vWorld;
   in float vGid;
+  in float vLift;
   out vec4 outColor;
   void main() {
     #ifdef PICK
@@ -372,7 +386,7 @@ const FRAG = /* glsl */`
       // Low afternoon sun from the south-west, a soft sky from above.
       float sun = max(dot(n, normalize(vec3(-0.55, 0.55, 0.62))), 0.0);
       float light = n.y > 0.9 ? 1.04 : 0.66 + 0.34 * sun;
-      float foot = mix(0.82, 1.0, clamp(vWorld.y / 12.0, 0.0, 1.0));
+      float foot = mix(0.82, 1.0, clamp((vWorld.y - vLift) / 12.0, 0.0, 1.0)); // darker at the foot, wherever the ground is
       vec3 c = vColor * light * foot;
       float d = length(vWorld - cameraPosition);
       c = mix(c, uFogColor, smoothstep(uFog.x, uFog.y, d));
@@ -742,6 +756,160 @@ function stepTurn(now) {
   p.z = o.z + x * s + z * c;
 }
 
+// ---------- Hills ----------
+// The relief of Rome (pipeline/s08_terrain.py), off by default. The button lifts the ground into its hills, heights
+// doubled so the seven hills, the Gianicolo and Monte Mario read beside the buildings; every building rides up onto
+// the ground at its centre, the Tiber follows its valley, street names lie on the slopes, and faint lines mark
+// every 10 m of height. Loaded on first use.
+const RELIEF = 2;
+const terrainBtn = document.querySelector('.terrain-toggle');
+let terrain = null, terrainOn = false, terrainAnim = null;
+
+async function loadTerrain() {
+  const buf = await (await fetch('data/terrain.bin')).arrayBuffer();
+  const dv = new DataView(buf);
+  const nx = dv.getUint32(4, true), nz = dv.getUint32(8, true);
+  const [x0, z0, cell, zmin, zstep] = [12, 16, 20, 24, 28].map(o => dv.getFloat32(o, true));
+  const q = new Uint16Array(buf, 32, nx * nz), kind = new Uint8Array(buf, 32 + 2 * nx * nz, nx * nz);
+  const h = new Float32Array(nx * nz);
+  for (let k = 0; k < h.length; k++) h[k] = Math.max(0, zmin + zstep * q[k]) * RELIEF;
+  // Bilinear height (exaggerated metres) at a local position.
+  const at = (x, z) => {
+    const fx = THREE.MathUtils.clamp((x - x0) / cell, 0, nx - 1.001), fz = THREE.MathUtils.clamp((z - z0) / cell, 0, nz - 1.001);
+    const i = Math.floor(fx), j = Math.floor(fz), u = fx - i, v = fz - j, k = j * nx + i;
+    return (h[k] * (1 - u) + h[k + 1] * u) * (1 - v) + (h[k + nx] * (1 - u) + h[k + nx + 1] * u) * v;
+  };
+  // The ground under every building, by its id: the building shader reads it.
+  const n = config.stats.buildings, W = 1024, g = new Float32Array(W * Math.ceil(n / W));
+  for (let i = 0; i < n; i++) g[i] = at(attrs.getFloat32(i * config.attrStride + 32, true), attrs.getFloat32(i * config.attrStride + 36, true));
+  const groundTex = new THREE.DataTexture(g, W, g.length / W, THREE.RedFormat, THREE.FloatType);
+  groundTex.needsUpdate = true;
+  uniforms.uGround.value = groundTex;
+  const heightTex = new THREE.DataTexture(h, nx, nz, THREE.RedFormat, THREE.FloatType);
+  heightTex.needsUpdate = true;
+
+  // The ground itself: a mesh on every other cell (80 m), with slopes from the full 40 m grid.
+  const S = 2, mx = Math.floor((nx - 1) / S) + 1, mz = Math.floor((nz - 1) / S) + 1;
+  const pos = new Float32Array(mx * mz * 3), grad = new Float32Array(mx * mz * 3), kd = new Float32Array(mx * mz);
+  for (let b = 0; b < mz; b++) for (let a = 0; a < mx; a++) {
+    const i = Math.min(a * S, nx - 1), j = Math.min(b * S, nz - 1), k = j * nx + i, v = b * mx + a;
+    pos.set([x0 + i * cell, h[k], z0 + j * cell], v * 3);
+    const hx = (h[j * nx + Math.min(i + 1, nx - 1)] - h[j * nx + Math.max(i - 1, 0)]) / (2 * cell);
+    const hz = (h[Math.min(j + 1, nz - 1) * nx + i] - h[Math.max(j - 1, 0) * nx + i]) / (2 * cell);
+    grad.set([hx, 0, hz], v * 3);
+    kd[v] = kind[k];
+  }
+  const idx = [];
+  for (let b = 0; b < mz - 1; b++) for (let a = 0; a < mx - 1; a++) {
+    const v = b * mx + a;
+    if (kd[v] || kd[v + 1] || kd[v + mx] || kd[v + mx + 1]) idx.push(v, v + mx, v + 1, v + 1, v + mx, v + mx + 1);
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute('grad', new THREE.BufferAttribute(grad, 3));
+  geo.setAttribute('kind', new THREE.BufferAttribute(kd, 1));
+  geo.setIndex(new THREE.BufferAttribute(new Uint32Array(idx), 1));
+  const groundMat = new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: { uTerrain: uniforms.uTerrain, uFogColor: uniforms.uFogColor, uFog: uniforms.uFog, uRelief: { value: RELIEF },
+      uLand: { value: col(TH.land) }, uWater: { value: col(TH.water) }, uLine: { value: col(TH.contour) } },
+    vertexShader: /* glsl */`
+      in vec3 grad;
+      in float kind;
+      uniform float uTerrain;
+      out vec3 vN; out vec3 vW; out float vKind; out float vH;
+      void main() {
+        vec3 p = vec3(position.x, position.y * uTerrain - 0.6, position.z); // flat, it lies just under the water
+        vN = vec3(-grad.x * uTerrain, 1.0, -grad.z * uTerrain);
+        vKind = kind; vH = position.y;
+        vec4 w = modelMatrix * vec4(p, 1.0);
+        vW = w.xyz;
+        gl_Position = projectionMatrix * viewMatrix * w;
+      }`,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform float uTerrain, uRelief;
+      uniform vec3 uLand, uWater, uLine, uFogColor;
+      uniform vec2 uFog;
+      in vec3 vN; in vec3 vW; in float vKind; in float vH;
+      out vec4 outColor;
+      void main() {
+        if (vKind < 0.5) discard;
+        vec3 n = normalize(vN);
+        // The same low sun from the south-west as the buildings: sunny slopes lighter, the lee darker.
+        float sun = dot(n, normalize(vec3(-0.55, 0.55, 0.62)));
+        vec3 c = vKind > 1.5 ? uWater : uLand;
+        c *= max(0.45, 1.0 + 1.6 * (sun - 0.552) * uTerrain);
+        // A thin line every 10 m of real height, a stronger one every 50 m.
+        float m = vH / uRelief, t = m / 10.0, T = m / 50.0;
+        float line = 1.0 - smoothstep(0.4, 1.4, abs(fract(t - 0.5) - 0.5) / fwidth(t));
+        float major = 1.0 - smoothstep(0.6, 1.8, abs(fract(T - 0.5) - 0.5) / fwidth(T));
+        if (vKind < 1.5) c = mix(c, uLine, max(line * 0.5, major * 0.85) * uTerrain);
+        c = mix(c, uFogColor, smoothstep(uFog.x, uFog.y, length(vW - cameraPosition)));
+        outColor = vec4(c, 1.0);
+      }`,
+  });
+  const ground = new THREE.Mesh(geo, groundMat);
+  ground.visible = false;
+  ground.frustumCulled = false;
+  flat.add(ground); // in the flat group, so picking leaves it out like the land
+
+  // The water follows the valley: its outline's vertices take the height of the ground beneath, plus a little.
+  water.material.polygonOffset = true; water.material.polygonOffsetFactor = -2; water.material.polygonOffsetUnits = -2;
+  water.material.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, { uTerrain: uniforms.uTerrain, uHeight: { value: heightTex }, uGrid: { value: new THREE.Vector3(x0, z0, cell) } });
+    sh.vertexShader = sh.vertexShader.replace('void main() {', `uniform float uTerrain; uniform sampler2D uHeight; uniform vec3 uGrid;
+      float heightAt(vec2 xz) {
+        ivec2 s = textureSize(uHeight, 0);
+        vec2 f = clamp((xz - uGrid.xy) / uGrid.z, vec2(0.0), vec2(s - 2));
+        ivec2 i = ivec2(floor(f)); vec2 u = f - vec2(i);
+        float a = texelFetch(uHeight, i, 0).r, b = texelFetch(uHeight, i + ivec2(1, 0), 0).r;
+        float c = texelFetch(uHeight, i + ivec2(0, 1), 0).r, d = texelFetch(uHeight, i + ivec2(1, 1), 0).r;
+        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+      }
+      void main() {`).replace('#include <begin_vertex>', `#include <begin_vertex>
+      transformed.y += uTerrain * (heightAt(position.xz) + 0.8);`);
+  };
+  water.material.needsUpdate = true;
+  return { at, ground, groundMat };
+}
+
+// A label lies on the ground; on the hills, on the ground at its own place, the Tiber's names a little higher.
+function labelY(l) {
+  const base = l.L.water ? 0.4 : 0.6, k = uniforms.uTerrain.value;
+  if (!k || !terrain) return base;
+  l.h ??= terrain.at(l.x, l.z);
+  return base + k * (l.h + (l.L.water ? 3 : 1.5));
+}
+
+function syncTerrainBtn() {
+  const label = t(terrainOn ? 'Flatten the city' : 'Show the hills');
+  terrainBtn.setAttribute('aria-pressed', String(terrainOn));
+  terrainBtn.setAttribute('aria-label', label); terrainBtn.title = label;
+  terrainBtn.querySelector('span').textContent = t('Hills');
+}
+async function setTerrain(on) {
+  if (on && !terrain) {
+    terrainBtn.classList.add('loading');
+    try { terrain = await loadTerrain(); } finally { terrainBtn.classList.remove('loading'); }
+  }
+  terrainOn = on;
+  if (on) { terrain.ground.visible = true; land.visible = false; }
+  terrainAnim = { t0: performance.now(), from: uniforms.uTerrain.value, to: on ? 1 : 0 };
+  syncTerrainBtn();
+}
+terrainBtn.onclick = () => setTerrain(!terrainOn);
+// The ground rises (or settles) over a second and a half; buildings and names ride with it.
+function stepTerrain(now) {
+  if (!terrainAnim) return;
+  const k = Math.min(1, (now - terrainAnim.t0) / 1500), e = k < 0.5 ? 4 * k ** 3 : 1 - (-2 * k + 2) ** 3 / 2;
+  uniforms.uTerrain.value = terrainAnim.from + (terrainAnim.to - terrainAnim.from) * e;
+  for (const l of labels) if (l.mesh) l.mesh.position.y = labelY(l);
+  if (k < 1) return;
+  terrainAnim = null;
+  if (!terrainOn) { terrain.ground.visible = false; land.visible = true; }
+}
+
 function stepFlight(now) {
   if (!flight) return;
   const k = Math.min(1, (now - flight.t0) / flight.dur), e = k < 0.5 ? 2 * k * k : 1 - (-2 * k + 2) ** 2 / 2;
@@ -1001,6 +1169,7 @@ function startPlay() {
   playIcon.setAttribute('d', 'M4 2.5h3v11H4zM9 2.5h3v11H9z');
   uniforms.uPlaying.value = 1;
   playBtn.setAttribute('aria-label', t('Pause'));
+  playBtn.setAttribute('aria-pressed', 'true');
 }
 function stopPlay() {
   playing = false;
@@ -1008,7 +1177,8 @@ function stopPlay() {
   uniforms.uRise.value = 0.01;
   uniforms.uYear.value = Math.round(uniforms.uYear.value);
   playIcon.setAttribute('d', 'M4 2.5v11l9-5.5z');
-  playBtn.setAttribute('aria-label', "Play the city's growth");
+  playBtn.setAttribute('aria-label', t("Play the city's growth"));
+  playBtn.setAttribute('aria-pressed', 'false');
 }
 playBtn.onclick = () => playing ? stopPlay() : startPlay();
 
@@ -1026,10 +1196,11 @@ function applyStaticText() {
   document.querySelector('.dek').textContent = t('Every building standing in 2014, and hundreds built since, by age and historical context.');
   document.querySelector('.about-open').textContent = t('About');
   document.querySelector('.byline-top .by').textContent = t('Made with 💙 by');
-  document.querySelector('.masthead .cta-coffee span').textContent = t('Buy me a coffee');
-  document.querySelector('.masthead .cta-in').title = t('Follow me on LinkedIn');
+  document.querySelector('.masthead-note .cta-coffee span').textContent = t('Buy me a coffee');
+  document.querySelector('.masthead-note .cta-in').title = t('Follow me on LinkedIn');
   compassBtn.setAttribute('aria-label', t('North up')); compassBtn.title = t('North up');
   spinShown = null; syncSpinBtn(); // relabels the spin button in the new language
+  syncTerrainBtn();
   const themeLabel = t(themeName() === 'dark' ? 'Light mode' : 'Dark mode');
   document.querySelector('.theme-toggle').setAttribute('aria-label', themeLabel);
   document.querySelector('.theme-toggle').title = themeLabel;
@@ -1068,6 +1239,11 @@ function applyTheme() {
   renderer.setClearColor(TH.sky);
   land.material.color.set(TH.land);
   water.material.color.set(TH.water);
+  if (terrain) {
+    terrain.groundMat.uniforms.uLand.value.set(TH.land);
+    terrain.groundMat.uniforms.uWater.value.set(TH.water);
+    terrain.groundMat.uniforms.uLine.value.set(TH.contour);
+  }
   uniforms.uMaquette.value.set(TH.maquette);
   uniforms.uFogColor.value.set(TH.sky);
   uniforms.uUse.value = useColors().map(col);
@@ -1097,6 +1273,7 @@ renderer.setAnimationLoop(now => {
   stepFlight(now);
   stepSpin(now);
   stepTurn(now);
+  stepTerrain(now);
   uniforms.uNow.value = now / 1000;
   uniforms.uMask.value = maskTarget;
   controls.update();

@@ -35,10 +35,8 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-/* Sky veils keep the masthead and the timeline legible over the model. */
-.veil { position: fixed; left: 0; right: 0; pointer-events: none; }
-.veil-top { top: 0; height: 150px; background: linear-gradient(var(--sky) 35%, var(--sky-clear)); }
-.veil-bottom { bottom: 0; height: 150px; background: linear-gradient(var(--sky-clear), var(--sky) 55%); }
+/* No veils over the model: the bars and cards carry their own paper; the two big words a soft halo. */
+h1, .tally-year { text-shadow: 0 0 12px var(--sky), 0 0 3px var(--sky); }
 
 /* Masthead: the three crosses, then the name set large and tight. */
 .masthead { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); left: var(--gutter);
@@ -47,10 +45,13 @@ h1 { position: relative; }
 .sibling { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 124px);
   color: var(--muted); font-size: 12px; text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
 h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-spacing: -0.035em; line-height: .9; }
-/* The dek and the credit sit on a slip of paper, so they read over the city. */
-.masthead-note { margin-top: 10px; padding: 8px 12px 9px; background: var(--paper); border-radius: 8px; width: fit-content;
-  max-width: 340px; box-shadow: 0 1px 0 var(--rule); pointer-events: auto; }
-.dek { margin: 0; color: var(--ink); max-width: 30ch; font-size: 14px; line-height: 1.4; }
+/* The dek and the credit: one strip of paper under the timeline. */
+.masthead-note { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding: 7px 14px; background: var(--paper);
+  border-radius: 10px; box-shadow: 0 1px 0 var(--rule), 0 6px 18px var(--shadow); }
+.dek { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.4; }
+/* One row: the dek gives way (wraps) before the credit and the buttons do. */
+.masthead-note .dek { flex: 1 1 240px; min-width: 0; }
+.masthead-note .byline-top, .masthead-note .ctas { flex: none; }
 
 /* Mode switch: a single bar, the active mode filled black. */
 .modes { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); left: 50%; transform: translateX(-50%);
@@ -65,8 +66,8 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
   box-shadow: 0 1px 0 var(--rule); color: var(--ink); }
 
 /* Context panel: legend, ramp or layer list, always on the left under the masthead. */
-.panel { position: fixed; left: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 206px);
-  width: min(340px, calc(100vw - 2 * var(--gutter))); max-height: calc(100vh - 386px); overflow-y: auto;
+.panel { position: fixed; left: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 76px);
+  width: min(340px, calc(100vw - 2 * var(--gutter))); max-height: calc(100vh - 310px); overflow-y: auto;
   background: var(--paper); border-radius: 10px; padding: 14px 16px; }
 .panel h2 { margin: 0 0 8px; font-size: 13px; font-weight: 700; }
 .panel h2.section { margin: 14px 0 4px; color: var(--muted); font-weight: 600; }
@@ -175,17 +176,36 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .card .hint { margin: 0; padding: 8px 16px 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--rule); }
 
 /* How to move: a quiet line under the timeline's right end. */
-.howto { position: fixed; right: var(--gutter); bottom: calc(env(safe-area-inset-bottom, 0px) + 120px); color: var(--muted); background: var(--sky-veil); padding: 2px 8px; border-radius: 4px;
+.howto { position: fixed; right: var(--gutter); bottom: calc(env(safe-area-inset-bottom, 0px) + 190px); color: var(--muted); background: var(--sky-veil); padding: 2px 8px; border-radius: 4px;
   font-size: 12px; pointer-events: none; }
 @media (max-width: 720px), (hover: none) { .howto { display: none; } }
 
-.timeline { position: fixed; left: 0; right: 0; bottom: 0; display: flex; align-items: flex-end; gap: 14px;
+.timeline { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px;
   padding: 0 var(--gutter) calc(env(safe-area-inset-bottom, 0px) + 14px); pointer-events: none; }
 .timeline > * { pointer-events: auto; }
-.timeline canvas { flex: 1; height: 96px; cursor: ew-resize; touch-action: none; }
-.play { width: 44px; height: 44px; border-radius: 50%; border: 0; background: var(--ink); color: var(--paper);
-  cursor: pointer; margin-bottom: 24px; display: grid; place-items: center; flex: none; }
-.play svg { width: 16px; height: 16px; fill: currentColor; }
+/* The play button and the histogram on one slip of paper, like the other cards, so they read over the city. */
+.hist-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; background: var(--paper); border-radius: 12px;
+  padding: 8px 12px 2px 14px; box-shadow: 0 1px 0 var(--rule), 0 6px 18px var(--shadow); }
+.timeline canvas { display: block; flex: 1; min-width: 0; height: 96px; cursor: ew-resize; touch-action: none; }
+.play { position: relative; width: 53px; height: 53px; border-radius: 50%; border: 0; background: var(--ink); color: var(--paper);
+  cursor: pointer; display: grid; place-items: center; flex: none; box-shadow: 0 6px 18px var(--shadow);
+  transition: transform .2s ease; animation: play-call 2.2s ease-out .8s 4; }
+.play svg { position: relative; width: 20px; height: 20px; fill: currentColor; margin-left: 2px; }
+.play[aria-pressed="true"] svg { margin-left: 0; }
+/* A ring in the colours of the periods, the timeline's own palette: it turns while the film plays. */
+.play::before { content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  background: conic-gradient(from 210deg, #3b0d0a, #9c2416, #d97a2b, #e5b13a, #8e9f3c, #3f8f6b, #2b8a8f, #2c6391, #3a4f9a, #6a3f8f, #3b0d0a);
+  /* cut to a ring 4 px wide, just outside the button, whatever the stacking order */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); }
+.play[aria-pressed="true"]::before { animation: play-ring 3s linear infinite; }
+.play:hover { transform: scale(1.07); }
+.play:active { transform: scale(.97); }
+/* A few soft calls after the page opens, so the film is found; then it rests. */
+@keyframes play-call { 0% { box-shadow: 0 6px 18px var(--shadow), 0 0 0 0 rgba(236, 0, 0, .45); }
+  70%, 100% { box-shadow: 0 6px 18px var(--shadow), 0 0 0 18px rgba(236, 0, 0, 0); } }
+@keyframes play-ring { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) { .play, .play::before, .play[aria-pressed="true"]::before { animation: none; } }
 
 .loading { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--muted); text-align: center; }
 .loading p { margin: 0; }
@@ -222,7 +242,9 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
   .card .photo img { border-radius: 14px 14px 0 0; max-height: 190px; }
   .timeline { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
   .timeline canvas { height: 76px; }
-  .play { width: 40px; height: 40px; margin-bottom: 18px; }
+  .play { width: 48px; height: 48px; }
+  .hist-card { gap: 10px; padding: 6px 8px 1px 10px; }
+  .play svg { width: 18px; height: 18px; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
@@ -255,10 +277,10 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 
 
 /* Credit under the dek: the maker, then a coffee and LinkedIn. */
-.byline-top { margin: 5px 0 0; padding-top: 5px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--muted); }
+.byline-top { margin: 0; padding-left: 16px; border-left: 1px solid var(--rule); font-size: 12px; color: var(--muted); }
 .byline-top a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; white-space: nowrap; }
-.masthead .ctas { margin: 7px 0 1px; }
-@media (max-width: 720px) { .byline-top, .masthead .ctas { display: none; } }
+.masthead-note .ctas { margin: 0; }
+@media (max-width: 720px) { .byline-top, .masthead-note .ctas { display: none; } }
 
 /* The two buttons, here and in About: a cup that steams and tips on hover, and LinkedIn's blue with a glint now and then. */
 .ctas { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -352,3 +374,16 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .spin-toggle[aria-pressed="true"] .spin-on { display: none; }
 .spin-toggle[aria-pressed="true"] .spin-off { display: block; }
 .spin-toggle[aria-pressed="true"] { background: var(--ink) !important; color: var(--paper) !important; }
+
+/* Hills: a pill under the compass, filled while the city stands on its relief. */
+.terrain-toggle { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 198px);
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 9px; border: 0; border-radius: 999px;
+  background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 0 var(--rule); }
+.terrain-toggle svg { width: 18px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.terrain-toggle .snow { stroke-width: 1.2; }
+.terrain-toggle:hover { box-shadow: 0 0 0 1.5px var(--ink); }
+.terrain-toggle[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.terrain-toggle.loading { opacity: .55; cursor: progress; }
+@media (max-width: 720px) {
+  .terrain-toggle { top: calc(env(safe-area-inset-top, 0px) + 158px); right: 14px; padding: 4px 9px 4px 7px; }
+}
