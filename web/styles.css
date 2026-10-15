@@ -60,7 +60,9 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 
 .tally { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); right: var(--gutter); text-align: right; }
 .tally-year { display: block; font-size: clamp(40px, 5vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: .85; }
-.tally-count { color: var(--muted); }
+/* The count sits on a slip of paper, like the dek, so it reads over the city. */
+.tally-count { display: inline-block; margin-top: 6px; padding: 2px 9px; border-radius: 6px; background: var(--paper);
+  box-shadow: 0 1px 0 var(--rule); color: var(--ink); }
 
 /* Context panel: legend, ramp or layer list, always on the left under the masthead. */
 .panel { position: fixed; left: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 172px);
@@ -194,7 +196,7 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
   .dek, .masthead-note { display: none; }
   h1 { font-size: 30px; }
   .tally-year { font-size: 30px; }
-  .tally-count { font-size: 12px; }
+  .tally-count { font-size: 12px; margin-top: 3px; padding: 1px 7px; }
   .masthead, .tally { top: calc(env(safe-area-inset-top, 0px) + 14px); }
   .lang { top: calc(env(safe-area-inset-top, 0px) + 66px); }
   .sibling { top: calc(env(safe-area-inset-top, 0px) + 98px); }
@@ -310,3 +312,11 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 @media (max-width: 720px) {
   .compass { top: calc(env(safe-area-inset-top, 0px) + 104px); right: 14px; width: 48px; height: 48px; }
 }
+
+/* Spin: a turning arrow; while the city turns, a stop square. */
+.spin-toggle { display: grid; place-items: center; width: 26px; padding: 3px 0 !important; color: var(--ink) !important; }
+.spin-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.spin-toggle .spin-off { display: none; fill: currentColor; stroke: none; }
+.spin-toggle[aria-pressed="true"] .spin-on { display: none; }
+.spin-toggle[aria-pressed="true"] .spin-off { display: block; }
+.spin-toggle[aria-pressed="true"] { background: var(--ink) !important; color: var(--paper) !important; }

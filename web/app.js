@@ -42,7 +42,7 @@ const IT_UI = {
   'Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.': 'Trascina per ruotare. Trascina col tasto destro o con Shift per spostarti. Scorri per lo zoom.',
   'Show legend': 'Mostra legenda', 'Hide legend': 'Nascondi legenda',
   'Built in': 'Costruito', 'Click a period to see it alone. Faded buildings have an estimated date.': 'Clicca su un’epoca per vederla da sola. Gli edifici sbiaditi hanno una data stimata.',
-  'Made with 💙 by': 'Fatto con 💙 da', 'North up': 'Nord in alto', 'Buy me a coffee': 'Offrimi un caffè', 'Dark mode': 'Tema scuro', 'Light mode': 'Tema chiaro',
+  'Made with 💙 by': 'Fatto con 💙 da', 'North up': 'Nord in alto', 'Spin the city': 'Fai girare la città', 'Stop spinning': 'Ferma la rotazione', 'Buy me a coffee': 'Offrimi un caffè', 'Dark mode': 'Tema scuro', 'Light mode': 'Tema chiaro',
   'Storeys': 'Piani', 'All context layers': 'Tutti i contesti', 'Buildings and their stories': 'Gli edifici e le loro storie',
   'Height': 'Altezza', 'height ÷ 3.2 m': 'altezza ÷ 3,2 m', 'Architect': 'Architetto', 'Architects': 'Architetti', 'Style': 'Stile',
   'In layers': 'Nei contesti', 'Dating': 'Datazione', 'Read more': 'Per saperne di più',
@@ -713,7 +713,24 @@ const TURN = 2 * Math.PI / 90;
 let turning = new URLSearchParams(location.search).get('spin') !== '0' && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 let turnT0 = -1, turnLast = 0;
 controls.addEventListener('start', () => turning = false);
+// The spin button, between About and the theme: it shows whether the city turns, and starts or stops it.
+// Turning stops in several places (a drag, the compass, a story), so the button follows `turning` every frame.
+const spinBtn = document.querySelector('.spin-toggle');
+let spinShown = null;
+function syncSpinBtn() {
+  if (spinShown === turning) return;
+  spinShown = turning;
+  const label = t(turning ? 'Stop spinning' : 'Spin the city');
+  spinBtn.setAttribute('aria-pressed', String(turning));
+  spinBtn.setAttribute('aria-label', label); spinBtn.title = label;
+}
+spinBtn.onclick = () => {
+  turning = !turning;
+  if (turning) { turnT0 = -1; spin = null; } // starts again gently, and wins over a north-up turn under way
+  syncSpinBtn();
+};
 function stepTurn(now) {
+  syncSpinBtn();
   if (!turning) return;
   if (turnT0 < 0) turnT0 = turnLast = now;
   const dt = Math.min(0.1, (now - turnLast) / 1000), k = Math.min(1, (now - turnT0) / 3000); // full speed after 3 s
@@ -1010,6 +1027,7 @@ function applyStaticText() {
   document.querySelector('.byline-top .by').textContent = t('Made with 💙 by');
   document.querySelector('.byline-top .coffee-link').textContent = t('Buy me a coffee');
   compassBtn.setAttribute('aria-label', t('North up')); compassBtn.title = t('North up');
+  spinShown = null; syncSpinBtn(); // relabels the spin button in the new language
   const themeLabel = t(themeName() === 'dark' ? 'Light mode' : 'Dark mode');
   document.querySelector('.theme-toggle').setAttribute('aria-label', themeLabel);
   document.querySelector('.theme-toggle').title = themeLabel;
