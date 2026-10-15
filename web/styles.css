@@ -65,8 +65,8 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
   box-shadow: 0 1px 0 var(--rule); color: var(--ink); }
 
 /* Context panel: legend, ramp or layer list, always on the left under the masthead. */
-.panel { position: fixed; left: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 172px);
-  width: min(340px, calc(100vw - 2 * var(--gutter))); max-height: calc(100vh - 352px); overflow-y: auto;
+.panel { position: fixed; left: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 206px);
+  width: min(340px, calc(100vw - 2 * var(--gutter))); max-height: calc(100vh - 386px); overflow-y: auto;
   background: var(--paper); border-radius: 10px; padding: 14px 16px; }
 .panel h2 { margin: 0 0 8px; font-size: 13px; font-weight: 700; }
 .panel h2.section { margin: 14px 0 4px; color: var(--muted); font-weight: 600; }
@@ -254,11 +254,42 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .card .photo.failed img { visibility: hidden; height: 190px; }
 
 
-/* Credit under the dek: the maker, and a coffee. */
+/* Credit under the dek: the maker, then a coffee and LinkedIn. */
 .byline-top { margin: 5px 0 0; padding-top: 5px; border-top: 1px solid var(--rule); font-size: 12px; color: var(--muted); }
 .byline-top a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; white-space: nowrap; }
-.byline-top .sep { margin: 0 6px; }
-@media (max-width: 720px) { .byline-top { display: none; } }
+.masthead .ctas { margin: 7px 0 1px; }
+@media (max-width: 720px) { .byline-top, .masthead .ctas { display: none; } }
+
+/* The two buttons, here and in About: a cup that steams and tips on hover, and LinkedIn's blue with a glint now and then. */
+.ctas { display: flex; flex-wrap: wrap; gap: 6px; }
+.cta { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 5px 11px 5px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.2; text-decoration: none;
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease, color .18s ease; }
+.cta svg { width: 16px; height: 16px; flex: none; overflow: visible; transition: transform .25s ease; }
+.cta:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--shadow); }
+.cta:active { transform: translateY(0); box-shadow: none; }
+.cta-coffee { background: var(--ink); color: var(--paper); }
+.cta-coffee:hover { background: var(--red); color: #fff; }
+.cta-coffee svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cta-coffee:hover svg { transform: rotate(-14deg); }
+.cta-coffee .steam { opacity: 0; animation: cta-steam 2.6s ease-in-out infinite; }
+.cta-coffee .steam + .steam { animation-delay: 1.3s; }
+@keyframes cta-steam { 0% { opacity: 0; transform: translateY(2px); } 35% { opacity: .95; } 100% { opacity: 0; transform: translateY(-4px); } }
+.cta-in { background: #0a66c2; color: #fff; }
+.cta-in:hover { background: #004182; }
+.cta-in svg { fill: currentColor; }
+.cta-in:hover svg { transform: scale(1.12); }
+.cta-in::after { content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-120%);
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .5) 50%, transparent 65%);
+  animation: cta-glint 7s ease-in-out 1.5s infinite; }
+.cta-in:hover::after { animation: cta-glint-now .7s ease-out; }
+@keyframes cta-glint { 0%, 86% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@keyframes cta-glint-now { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce) {
+  .cta, .cta svg { transition: none; }
+  .cta-coffee .steam { animation: none; opacity: .8; }
+  .cta-in::after { display: none; }
+}
 
 /* Theme toggle: a moon by day, a sun by night, in the pill with About and the languages. */
 .theme-toggle { display: grid; place-items: center; width: 26px; padding: 3px 0 !important; color: var(--ink) !important; }
@@ -277,10 +308,11 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
   border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
 .about .maker .author { margin: 0; }
 .about .maker .bio { margin: 0; grid-column: 1; color: var(--muted); font-size: 13px; line-height: 1.55; }
-.about .coffee { grid-column: 2; grid-row: 1 / span 2; display: inline-flex; align-items: center; gap: 8px; white-space: nowrap;
-  padding: 9px 14px; border-radius: 999px; background: var(--ink); color: var(--paper); text-decoration: none; font-weight: 600; font-size: 13px; }
-.about .coffee svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
-.about .coffee:hover { background: var(--red); color: #fff; }
+.about .maker .ctas { grid-column: 2; grid-row: 1 / span 2; flex-direction: column; gap: 8px; }
+.about .cta { justify-content: center; gap: 8px; padding: 9px 14px; font-size: 13px; text-decoration: none; }
+.about .cta svg { width: 17px; height: 17px; }
+.about .cta-coffee { color: var(--paper); }
+.about .cta-coffee:hover, .about .cta-in { color: #fff; }
 .about .sources { font-size: 13px; }
 .about .sources li { margin-bottom: 3px; }
 .about details { margin-top: 18px; border-top: 1px solid var(--rule); padding-top: 12px; }
@@ -289,7 +321,7 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .about details p, .about details li { font-size: 13px; }
 @media (max-width: 720px) {
   .about .maker { grid-template-columns: 1fr; }
-  .about .coffee { grid-column: 1; grid-row: auto; justify-self: start; margin-top: 8px; }
+  .about .maker .ctas { grid-column: 1; grid-row: auto; flex-direction: row; margin-top: 8px; }
 }
 
 /* Compass: a compass card lying on the ground under the camera. It turns as the map turns and tilts as the

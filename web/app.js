@@ -92,6 +92,7 @@ const IT_UI = {
     'In costruzione quando la Regione lo ha rilevato. Gli anni sono l’intervallo in cui le mappe del suolo dell’ISPRA mostrano per la prima volta un edificio finito: dal rilievo, o dalla mappa precedente, alla prima mappa che lo mostra. È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura.',
   'Newer than the region’s 2014 survey: the footprint is from OpenStreetMap. The year is when ISPRA’s land maps first show a building here, a window where the maps skip years (there are none for 2013–14). That is when the structure is visible from above, often a year or two before it opens.':
     'Più recente del rilievo regionale del 2014: la pianta è di OpenStreetMap. L’anno è quello in cui le mappe del suolo dell’ISPRA mostrano per la prima volta un edificio qui, un intervallo dove le mappe saltano degli anni (non ce ne sono per il 2013–14). È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura.',
+  'Follow me on LinkedIn': 'Seguimi su LinkedIn',
 };
 let LANG = (() => {
   const q = new URLSearchParams(location.search).get('lang');
@@ -1025,7 +1026,8 @@ function applyStaticText() {
   document.querySelector('.dek').textContent = t('Every building standing in 2014, and hundreds built since, by age and historical context.');
   document.querySelector('.about-open').textContent = t('About');
   document.querySelector('.byline-top .by').textContent = t('Made with 💙 by');
-  document.querySelector('.byline-top .coffee-link').textContent = t('Buy me a coffee');
+  document.querySelector('.masthead .cta-coffee span').textContent = t('Buy me a coffee');
+  document.querySelector('.masthead .cta-in').title = t('Follow me on LinkedIn');
   compassBtn.setAttribute('aria-label', t('North up')); compassBtn.title = t('North up');
   spinShown = null; syncSpinBtn(); // relabels the spin button in the new language
   const themeLabel = t(themeName() === 'dark' ? 'Light mode' : 'Dark mode');
