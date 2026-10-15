@@ -91,6 +91,20 @@ h1 { margin: 0; padding: 5px 12px 6px; font-size: clamp(34px, 4.4vw, 56px); font
 .swatch i { width: 12px; height: 12px; border-radius: 2px; }
 .swatch .n { color: var(--muted); font-size: 12px; }
 .sheet-handle { display: none; }
+/* On a computer the handle is a small arrow in the panel's corner, kept there when the panel scrolls and above the layer
+   jump bar; folded, the panel is one line that opens it again. */
+@media (min-width: 721px) {
+  .sheet-handle { position: sticky; top: -6px; float: right; z-index: 2; margin: -6px -8px -26px 0; display: grid; place-items: center;
+    width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; font-size: 0; }
+  .sheet-handle::after { content: ""; width: 7px; height: 7px; margin-top: 4px; border: solid currentColor; border-width: 0 2px 2px 0;
+    transform: rotate(225deg); }
+  .sheet-handle:hover { background: var(--sky); color: var(--ink); }
+  .panel.collapsed { width: auto; padding: 0; overflow: hidden; }
+  .panel.collapsed .sheet-handle { position: static; float: none; margin: 0; display: flex; gap: 10px; width: auto; height: auto; padding: 9px 14px;
+    border-radius: 10px; font-size: 13px; font-weight: 700; color: var(--ink); }
+  .panel.collapsed .sheet-handle::after { margin-top: -4px; transform: rotate(45deg); }
+  .panel.collapsed #panel-body { display: none; }
+}
 .energy-scale div { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 2px 0; }
 .energy-scale i { height: 14px; border-radius: 2px; }
 .energy-scale .n { color: var(--muted); font-size: 12px; }

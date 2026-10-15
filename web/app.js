@@ -35,7 +35,6 @@ const attrs = new DataView(attrBuf);
 // ---------- Language ----------
 // English and Italian. Data carries `<field>_it` next to each English text; the interface strings are below.
 const IT_UI = {
-  'Every building standing in 2014, and hundreds built since, by age and historical context.': 'Ogni edificio in piedi nel 2014, e centinaia costruiti dopo, per età e contesto storico.',
   'About': 'Info', 'Photo': 'Foto', 'Source': 'Fonte', 'Close': 'Chiudi',
   'Period': 'Epoca', 'Context layers': 'Contesti', 'Floors': 'Piani', 'Use': 'Uso',
   'buildings': 'edifici', 'Building the city': 'Costruendo la città', 'All roads lead to Rome.': 'Tutte le strade portano a Roma.',
@@ -924,10 +923,11 @@ const panel = document.getElementById('panel-body');
 const sheetHandle = panelEl.querySelector('.sheet-handle');
 const phone = matchMedia('(max-width: 720px)');
 // On a phone the panel is a sheet: folded to one line until opened, and folded again when the city is the point.
+// On a computer it opens, and a small arrow in its corner folds it to one line for whoever wants the whole city.
 function setCollapsed(c) {
   panelEl.classList.toggle('collapsed', c);
   sheetHandle.setAttribute('aria-expanded', String(!c));
-  sheetHandle.textContent = t(c ? 'Show legend' : 'Hide legend');
+  sheetHandle.textContent = sheetHandle.title = t(c ? 'Show legend' : 'Hide legend');
 }
 sheetHandle.onclick = () => setCollapsed(!panelEl.classList.contains('collapsed'));
 function collapsePanelOnPhone() { if (phone.matches) setCollapsed(true); }
@@ -1193,7 +1193,7 @@ function resize() {
 addEventListener('resize', resize);
 function applyStaticText() {
   document.documentElement.lang = LANG;
-  document.querySelector('.dek').textContent = t('Every building standing in 2014, and hundreds built since, by age and historical context.');
+  document.querySelector('.dek').textContent = t('All roads lead to Rome.');
   document.querySelector('.about-open').textContent = t('About');
   document.querySelector('.byline-top .by').textContent = t('Made with 💙 by');
   document.querySelector('.masthead-note .cta-coffee span').textContent = t('Buy me a coffee');
@@ -1215,7 +1215,7 @@ function applyStaticText() {
   document.querySelector('#loading .building-text').textContent = t('Building the city');
   playBtn.setAttribute('aria-label', t(playing ? 'Pause' : "Play the city's growth"));
   document.querySelectorAll('.lang [data-lang]').forEach(b => b.setAttribute('aria-pressed', b.dataset.lang === LANG));
-  sheetHandle.textContent = t(panelEl.classList.contains('collapsed') ? 'Show legend' : 'Hide legend');
+  sheetHandle.textContent = sheetHandle.title = t(panelEl.classList.contains('collapsed') ? 'Show legend' : 'Hide legend');
 }
 document.querySelectorAll('.modes button[data-mode]').forEach(b => { b.dataset.label = b.textContent.trim(); });
 const about = document.getElementById('about');
