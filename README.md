@@ -3,7 +3,7 @@
 Every building standing in Rome in 2014, the year of the region's latest survey, 250,000 of them with the Vatican
 City inside it, and 708 finished since, by age and historical context: a 3D map built entirely from open data.
 
-**See it:** [jacopoottaviani.com/rome-over-time](https://jacopoottaviani.com/rome-over-time/). The city turns slowly on its
+**See it:** [jacopoottaviani.com/rome](https://jacopoottaviani.com/rome/). The city turns slowly on its
 own until you touch it; add `?spin=0` to the address to keep it still.
 
 Made with 💙 by [Jacopo Ottaviani](https://jacopoottaviani.com), data journalist and computer scientist. If it's useful to you,
@@ -51,7 +51,7 @@ The fetch steps download about 2.8 GB (1.2 GB of DBGT layers, 1.2 GB of ISPRA's 
 generated output (`web/data/`) are not in the repository: they are rebuilt by the pipeline.
 
 `scripts/publish.sh` puts `web/`, with its data, on the `gh-pages` branch that GitHub Pages serves at
-jacopoottaviani.com/rome-over-time. The branch is rebuilt from scratch each time, so the data never piles up in the history.
+jacopoottaviani.com/rome. The branch is rebuilt from scratch each time, so the data never piles up in the history.
 `node scripts/og-image.mjs` renders the link-preview image that WhatsApp and Slack show (`web/og-image.jpg`) from the
 live site with the Chrome on this machine; run it again after the data changes, then publish.
 

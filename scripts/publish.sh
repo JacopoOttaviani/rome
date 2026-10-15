@@ -1,5 +1,5 @@
 #!/bin/sh
-# Publishes web/, with the generated data, to the gh-pages branch that serves jacopoottaviani.com/rome-over-time.
+# Publishes web/, with the generated data, to the gh-pages branch that serves jacopoottaviani.com/rome.
 # The branch is rebuilt from scratch each time, so the data never piles up in the history.
 # web/data/tiles/ stays out: the map reads the eight packs, not the loose tiles.
 set -eu

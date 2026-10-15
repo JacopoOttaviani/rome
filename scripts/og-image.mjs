@@ -7,7 +7,7 @@ import { writeFileSync, mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-const [url = 'https://jacopoottaviani.com/rome-over-time/?spin=0&lang=en', out = 'web/og-image.jpg'] = process.argv.slice(2);
+const [url = 'https://jacopoottaviani.com/rome/?spin=0&lang=en', out = 'web/og-image.jpg'] = process.argv.slice(2);
 // dolly < 1 moves the camera in from the opening view; azimuthDeg, polarDeg and target: [x, z] can turn and aim it.
 const view = {
   dolly: 0.82,
