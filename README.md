@@ -114,5 +114,5 @@ Code: MIT (see [LICENSE](LICENSE)). Data keeps the licence of its source: Region
 census data CC BY 4.0; Wikidata CC0; Wikipedia text CC BY-SA; Wikimedia Commons photos each under their own licence,
 credited in the app; OpenStreetMap © OpenStreetMap contributors, ODbL (the rioni, `web/data/labels.json` and the
 footprints of the buildings newer than the survey are derived from it and stay under the ODbL). ISPRA's
-land-consumption series for Roma Capitale carries no licence on its download page; ISPRA's national land-consumption
-maps are CC BY 4.0, and the terms of the Rome series are being confirmed with ISPRA (consumosuolo@isprambiente.it).
+land-consumption series for Roma Capitale carries no licence on its download page; ISPRA confirmed in October 2026 that
+it can be reused for this map (its national land-consumption maps are CC BY 4.0).

@@ -2,8 +2,8 @@
 in 2006, 2012 and every year from 2015 to 2021 (class 111: buildings). It dates the buildings the 2014 survey saw
 under construction and those it does not have (see pipeline/ispra.py).
 
-ISPRA publishes it in its data library with no licence on the folder; ISPRA's national land-consumption maps are
-CC BY 4.0. Files already downloaded are kept.
+ISPRA publishes it in its data library with no licence on the folder, and confirmed in October 2026 that it can be
+reused for this map; ISPRA's national land-consumption maps are CC BY 4.0. Files already downloaded are kept.
 """
 from pathlib import Path
 
