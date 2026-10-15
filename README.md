@@ -27,7 +27,7 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s00_fetch_dbt` | Buildings, volumes, monuments and water of the Lazio geotopographic database (DBGT 2014), read out of the region's per-sheet zips with HTTP range requests |
 | `s00_fetch_istat` | ISTAT 2011 census sections for Lazio, their outlines and building counts by period of construction |
 | `s00_fetch_wikidata` | Every Wikidata item with a coordinate in Rome: dates, architects, styles, heritage status, heights, photos |
-| `s00_fetch_osm` | The 22 rioni (Nominatim), named streets (Overpass; when the public Overpass servers are busy, as they were in October 2026, Geofabrik's extract of central Italy) and building footprints (the extract) |
+| `s00_fetch_osm` | The 22 rioni (Nominatim), named streets (Overpass; when the public Overpass servers are busy, as they were in October 2026, Geofabrik's extract of central Italy) building footprints and the addresses that carry a postcode (the extract) |
 | `s00_fetch_ispra` | ISPRA's land-consumption series for Roma Capitale, 2006–2021: Rome's built-up land, polygon by polygon, with its class each year |
 | `s01_load` | DBGT sheets → one row per building and its volume units (LoD1 parts with eaves heights); the buildings finished since, from OpenStreetMap; the year ISPRA's maps first show each unfinished or newer building |
 | `s02_attributes` | Dates every building (see below), heights, storeys |
@@ -37,13 +37,14 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s04_water` | Water, the sea off Ostia, and the city outline |
 | `s07_labels` | Street, square and river names placed along their lines |
 | `s00_fetch_contours`, `s08_terrain` | The DBGT's contour lines, and from them and the buildings' bases a 40 m elevation grid for the hills view |
+| `s09_postcodes` | Rome's 74 postcodes (CAP) for the search box: each at the middle of the addresses OpenStreetMap files under it, with how far they spread. There is no open map of the postcode areas, so the map pins a middle, not a boundary |
 
 ## Run it
 
 ```bash
 uv sync     # or: python3 -m venv .venv && .venv/bin/pip install geopandas numpy pandas pyarrow pyogrio pyproj requests scipy shapely
 for s in s00_fetch_dbt s00_fetch_contours s00_fetch_istat s00_fetch_wikidata s00_fetch_osm s00_fetch_ispra; do uv run python -m pipeline.$s; done
-for s in s01_load s02_attributes s05_layers s06_wiki s03_tiles s04_water s07_labels s08_terrain; do uv run python -m pipeline.$s; done
+for s in s01_load s02_attributes s05_layers s06_wiki s03_tiles s04_water s07_labels s08_terrain s09_postcodes; do uv run python -m pipeline.$s; done
 python3 -m http.server 8642 --directory web
 ```
 

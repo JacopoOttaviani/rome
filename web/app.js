@@ -93,6 +93,7 @@ const IT_UI = {
     'Più recente del rilievo regionale del 2014: la pianta è di OpenStreetMap. L’anno è quello in cui le mappe del suolo dell’ISPRA mostrano per la prima volta un edificio qui, un intervallo dove le mappe saltano degli anni (non ce ne sono per il 2013–14). È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura.',
   'Follow me on LinkedIn': 'Seguimi su LinkedIn',
   'Hills': 'Colli', 'Show the hills': 'Mostra i colli', 'Flatten the city': 'Torna in piano',
+  'Your CAP': 'Il tuo CAP', 'Fly to a postcode (CAP)': 'Vola a un CAP', 'Not a postcode in Rome': 'Non è un CAP di Roma',
 };
 let LANG = (() => {
   const q = new URLSearchParams(location.search).get('lang');
@@ -917,6 +918,55 @@ function stepFlight(now) {
   if (k >= 1) { const d = flight.done; flight = null; d?.(); }
 }
 
+// ---------- Postcode search ----------
+// A CAP flies the camera to the middle of the addresses OpenStreetMap files under it (pipeline/s09_postcodes.py)
+// and leaves a pin there. Rome has no open map of its postcode areas: the pin marks a middle, not a boundary.
+const capForm = document.querySelector('.cap-search'), capInput = capForm.querySelector('input');
+const capMsg = document.querySelector('.cap-msg'), capPin = document.querySelector('.cap-pin');
+let postcodes = {}, capAt = null;
+fetch('data/postcodes.json').then(r => r.json()).then(p => {
+  postcodes = p;
+  document.getElementById('caps').innerHTML = Object.keys(p).map(c => `<option value="${c}">`).join('');
+}).catch(() => {});
+function findCap(cap) {
+  capMsg.hidden = true;
+  if (cap === '00100') { // Rome's general CAP: the whole city
+    capAt = null;
+    flyTo(config.home.x, config.home.z, null, config.home.span * 0.9);
+    return;
+  }
+  const p = postcodes[cap];
+  if (!p) { capAt = null; capMsg.textContent = t('Not a postcode in Rome'); capMsg.hidden = false; return; }
+  const [x, z, spread] = p;
+  capAt = { x, z };
+  capPin.querySelector('b').textContent = cap;
+  collapsePanelOnPhone();
+  if (phone.matches) capInput.blur(); // the keyboard down, the city in view
+  flyTo(x, z, null, THREE.MathUtils.clamp(spread * 2.8, 900, 9000));
+}
+// Digits only; the fifth one flies, and so does Enter (or Go) once there are five.
+capInput.addEventListener('input', () => {
+  const v = capInput.value.replace(/\D/g, '').slice(0, 5);
+  if (v !== capInput.value) capInput.value = v;
+  capMsg.hidden = true;
+  if (!v) capAt = null;
+  if (v.length === 5) findCap(v);
+});
+capForm.addEventListener('submit', e => {
+  e.preventDefault();
+  if (capInput.value.length === 5) findCap(capInput.value);
+});
+// The pin stands on the ground, on the hills when they are up, drawn over the canvas where the camera sees it.
+const capV = new THREE.Vector3();
+function stepCapPin() {
+  if (!capAt) { capPin.hidden = true; return; }
+  const k = uniforms.uTerrain.value;
+  capV.set(capAt.x, k && terrain ? k * terrain.at(capAt.x, capAt.z) : 0, capAt.z).project(camera);
+  const on = capV.z < 1 && Math.abs(capV.x) < 1.1 && Math.abs(capV.y) < 1.1;
+  capPin.hidden = !on;
+  if (on) capPin.style.transform = `translate(${((capV.x + 1) / 2 * innerWidth).toFixed(1)}px, ${((1 - capV.y) / 2 * innerHeight).toFixed(1)}px)`;
+}
+
 // ---------- Panel ----------
 const panelEl = document.getElementById('panel');
 const panel = document.getElementById('panel-body');
@@ -1201,6 +1251,9 @@ function applyStaticText() {
   compassBtn.setAttribute('aria-label', t('North up')); compassBtn.title = t('North up');
   spinShown = null; syncSpinBtn(); // relabels the spin button in the new language
   syncTerrainBtn();
+  capInput.placeholder = t('Your CAP');
+  capInput.setAttribute('aria-label', t('Fly to a postcode (CAP)'));
+  if (!capMsg.hidden) capMsg.textContent = t('Not a postcode in Rome');
   const themeLabel = t(themeName() === 'dark' ? 'Light mode' : 'Dark mode');
   document.querySelector('.theme-toggle').setAttribute('aria-label', themeLabel);
   document.querySelector('.theme-toggle').title = themeLabel;
@@ -1278,6 +1331,7 @@ renderer.setAnimationLoop(now => {
   uniforms.uMask.value = maskTarget;
   controls.update();
   updateCompass();
+  stepCapPin();
   const dist = camera.position.distanceTo(controls.target);
   uniforms.uFog.value.set(dist * 1.6, dist * 4);
   if (frame % 6 === 0) updateLabels(dist);

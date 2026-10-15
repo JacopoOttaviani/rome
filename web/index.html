@@ -34,10 +34,20 @@
 </head>
 <body>
 <canvas id="scene" aria-label="3D map of Rome's buildings"></canvas>
+<div class="cap-pin" hidden aria-hidden="true">
+  <svg viewBox="0 0 24 32"><path d="M12 31s-9-10.2-9-17.5a9 9 0 0 1 18 0C21 20.8 12 31 12 31z"/><circle cx="12" cy="13.2" r="3.4"/></svg>
+  <b></b>
+</div>
 
 <header class="masthead">
   <div>
     <h1>Roma</h1>
+    <form class="cap-search" role="search" autocomplete="off">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.3 10.3 14 14"/></svg>
+      <input type="search" inputmode="numeric" maxlength="5" placeholder="Your CAP" aria-label="Fly to a postcode (CAP)" list="caps" enterkeyhint="go">
+      <datalist id="caps"></datalist>
+    </form>
+    <p class="cap-msg" role="status" hidden></p>
   </div>
 </header>
 
@@ -78,7 +88,7 @@
       <li>Buildings, heights, uses, monuments: Regione Lazio, geotopographic database 2014. CC BY 4.0.</li>
       <li>Periods of construction: ISTAT, 2011 census by section. CC BY 4.0.</li>
       <li>Names, dates, architects, photos: Wikidata (CC0), Wikipedia (CC BY-SA), Wikimedia Commons (credited per photo).</li>
-      <li>Rioni, street names, and the footprints of buildings newer than the survey: © OpenStreetMap contributors. ODbL.</li>
+      <li>Rioni, street names, postcodes (each placed at the middle of the addresses filed under it), and the footprints of buildings newer than the survey: © OpenStreetMap contributors. ODbL.</li>
       <li>When buildings under construction in 2014, and newer ones, were finished: ISPRA, land-consumption maps of Roma Capitale, 2006–2021.</li>
     </ul>
     <details>
@@ -110,7 +120,7 @@
       <li>Edifici, altezze, usi, monumenti: Regione Lazio, database geotopografico 2014. CC BY 4.0.</li>
       <li>Epoche di costruzione: ISTAT, censimento 2011 per sezione. CC BY 4.0.</li>
       <li>Nomi, date, architetti, foto: Wikidata (CC0), Wikipedia (CC BY-SA), Wikimedia Commons (crediti su ogni foto).</li>
-      <li>Rioni, nomi delle strade e piante degli edifici più recenti del rilievo: © contributori di OpenStreetMap. ODbL.</li>
+      <li>Rioni, nomi delle strade, CAP (ciascuno al centro degli indirizzi registrati sotto di esso) e piante degli edifici più recenti del rilievo: © contributori di OpenStreetMap. ODbL.</li>
       <li>Quando sono stati finiti gli edifici in costruzione nel 2014, e quelli più recenti: ISPRA, mappe del consumo di suolo di Roma Capitale, 2006–2021.</li>
     </ul>
     <details>

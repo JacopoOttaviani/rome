@@ -102,6 +102,22 @@ def buildings():
     print(len(b), "building footprints")
 
 
+def postcodes():
+    """Every address in the comune's box that carries a postcode (addr:postcode), nodes and building outlines alike,
+    for the postcode search (s09_postcodes)."""
+    import geopandas as gpd
+    import pyogrio
+    s, w, n, e = ROME_BOX
+    where = "other_tags LIKE '%addr:postcode%'"
+    pts = pyogrio.read_dataframe(extract(), layer="points", bbox=(w, s, e, n), columns=["other_tags"], where=where)
+    areas = pyogrio.read_dataframe(extract(), layer="multipolygons", bbox=(w, s, e, n), columns=["other_tags"], where=where)
+    areas["geometry"] = areas.geometry.representative_point()
+    a = pd.concat([pts, areas], ignore_index=True)
+    a["cap"] = a.other_tags.map(lambda o: tags(o).get("addr:postcode", "").strip())
+    gpd.GeoDataFrame(a[["cap"]], geometry=a.geometry, crs=4326).to_parquet(OUT / "postcodes.parquet")
+    print(len(a), "addresses with a postcode")
+
+
 def streets_extract():
     import pyogrio
     pbf = extract()
@@ -146,7 +162,7 @@ def streets_overpass():
 def main():
     import sys
     OUT.mkdir(parents=True, exist_ok=True)
-    for step in sys.argv[1:] or ["rioni", "streets", "buildings"]:
+    for step in sys.argv[1:] or ["rioni", "streets", "buildings", "postcodes"]:
         globals()[step]()
 
 
