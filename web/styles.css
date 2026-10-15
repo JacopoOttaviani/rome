@@ -35,8 +35,8 @@ button { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
 
 #scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
-/* No veils over the model: the bars and cards carry their own paper; the two big words a soft halo. */
-h1, .tally-year { text-shadow: 0 0 12px var(--sky), 0 0 3px var(--sky); }
+/* No veils over the model: the bars and cards carry their own paper, and so do the two big words. */
+h1, .tally-year { width: fit-content; background: var(--paper); border-radius: 10px; box-shadow: 0 1px 0 var(--rule); }
 
 /* Masthead: the three crosses, then the name set large and tight. */
 .masthead { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); left: var(--gutter);
@@ -44,7 +44,7 @@ h1, .tally-year { text-shadow: 0 0 12px var(--sky), 0 0 3px var(--sky); }
 h1 { position: relative; }
 .sibling { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 124px);
   color: var(--muted); font-size: 12px; text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
-h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-spacing: -0.035em; line-height: .9; }
+h1 { margin: 0; padding: 5px 12px 6px; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-spacing: -0.035em; line-height: .9; }
 /* The dek and the credit: one strip of paper under the timeline. */
 .masthead-note { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding: 7px 14px; background: var(--paper);
   border-radius: 10px; box-shadow: 0 1px 0 var(--rule), 0 6px 18px var(--shadow); }
@@ -60,7 +60,7 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .modes button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 
 .tally { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); right: var(--gutter); text-align: right; }
-.tally-year { display: block; font-size: clamp(40px, 5vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: .85; }
+.tally-year { display: block; margin-left: auto; padding: 5px 10px 6px; font-size: clamp(40px, 5vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: .85; }
 /* The count sits on a slip of paper, like the dek, so it reads over the city. */
 .tally-count { display: inline-block; margin-top: 6px; padding: 2px 9px; border-radius: 6px; background: var(--paper);
   box-shadow: 0 1px 0 var(--rule); color: var(--ink); }
@@ -81,7 +81,7 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .jump button:hover { background: var(--sky); }
 .jump .icon { width: 18px; height: 18px; }
 /* Language: two letters under the year. */
-.lang { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 92px); display: flex;
+.lang { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 103px); display: flex;
   background: var(--paper); border-radius: 999px; padding: 2px; }
 .lang button { border: 0; background: none; padding: 3px 9px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
 .lang button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
@@ -214,11 +214,11 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 
 @media (max-width: 720px) {
   .dek, .masthead-note { display: none; }
-  h1 { font-size: 30px; }
-  .tally-year { font-size: 30px; }
+  h1 { font-size: 30px; padding: 3px 8px 4px; border-radius: 8px; }
+  .tally-year { font-size: 30px; padding: 3px 8px 4px; border-radius: 8px; }
   .tally-count { font-size: 12px; margin-top: 3px; padding: 1px 7px; }
   .masthead, .tally { top: calc(env(safe-area-inset-top, 0px) + 14px); }
-  .lang { top: calc(env(safe-area-inset-top, 0px) + 66px); }
+  .lang { top: calc(env(safe-area-inset-top, 0px) + 73px); }
   .sibling { top: calc(env(safe-area-inset-top, 0px) + 98px); }
   /* Modes: one scrolling strip above the timeline. */
   .modes { top: auto; left: 12px; right: 12px; transform: none; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
@@ -348,7 +348,7 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 
 /* Compass: a compass card lying on the ground under the camera. It turns as the map turns and tilts as the
    camera tilts; a click turns the map back to north up. */
-.compass { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 132px);
+.compass { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 143px);
   width: 58px; height: 58px; padding: 0; border: 0; background: none; cursor: pointer; perspective: 170px; }
 .compass svg { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: 50% 50%;
   filter: drop-shadow(0 1px 3px var(--shadow)); }
@@ -364,7 +364,7 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .compass:hover .face { stroke: var(--ink); }
 .compass:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 50%; }
 @media (max-width: 720px) {
-  .compass { top: calc(env(safe-area-inset-top, 0px) + 104px); right: 14px; width: 48px; height: 48px; }
+  .compass { top: calc(env(safe-area-inset-top, 0px) + 111px); right: 14px; width: 48px; height: 48px; }
 }
 
 /* Spin: a turning arrow; while the city turns, a stop square. */
@@ -376,7 +376,7 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .spin-toggle[aria-pressed="true"] { background: var(--ink) !important; color: var(--paper) !important; }
 
 /* Hills: a pill under the compass, filled while the city stands on its relief. */
-.terrain-toggle { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 198px);
+.terrain-toggle { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 209px);
   display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 9px; border: 0; border-radius: 999px;
   background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 0 var(--rule); }
 .terrain-toggle svg { width: 18px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
@@ -385,5 +385,5 @@ h1 { margin: 0; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-sp
 .terrain-toggle[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
 .terrain-toggle.loading { opacity: .55; cursor: progress; }
 @media (max-width: 720px) {
-  .terrain-toggle { top: calc(env(safe-area-inset-top, 0px) + 158px); right: 14px; padding: 4px 9px 4px 7px; }
+  .terrain-toggle { top: calc(env(safe-area-inset-top, 0px) + 165px); right: 14px; padding: 4px 9px 4px 7px; }
 }
