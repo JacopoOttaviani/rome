@@ -79,16 +79,21 @@ live site with the Chrome on this machine; run it again after the data changes, 
   - **The 2011 census** counts the residential buildings of each of Rome's 13,656 sections by period of construction
     (before 1919, 1919–45, 1946–60, 1961–70, 1971–80, 1981–90, 1991–2000, 2001–05, after 2005). Each section's
     residential DBGT buildings are given those periods in the same proportions. Which building gets which period is
-    not known: buildings already in the 2002–03 survey cannot date from after 2005, and those the 2014 survey added or
-    redrew take the newest periods first; hash order breaks the ties. The colour is the census's period, the year is
-    spread within it for the timeline; "after 2005" ends with the census, in October 2011. 145,000 buildings are dated
+    not known; three things steer it. ISPRA's land maps (below) show which buildings are new since 2006: they take the
+    2006–2011 period first, a building standing on the 2006 map never takes it, and a building not yet on it takes no
+    older period (of the buildings already in the 2003 survey, 99.2% stand on the 2006 map and 0.05% appear only from
+    2012; a finished building of the 2014 survey that ISPRA shows only from 2016 is one its maps missed). Buildings already in the
+    2002–03 survey cannot date from after 2005. Those the 2014 survey added or redrew come next; hash order breaks the
+    ties. Before this, the newest period went to redrawn buildings at random, and three in four of them already stood
+    in 2006. The colour is the census's period, the year is
+    spread within it for the timeline; "after 2005" ends with the census, in October 2011. 144,000 buildings are dated
     this way, so read the map as the age of a neighbourhood more than of a single house.
   - **ISPRA's land maps.** ISPRA's land-consumption series for Roma Capitale draws the city's built-up land in 2006,
     2012 and every year from 2015 to 2021, each polygon with its class that year (open land, building site, building,
     yard…). A footprint counts as a building from the first map that marks at least half of it as one: that is when
     the finished structure is visible from above, often a year or two before it opens (the AURA mall: 2018, opened
     April 2018; Esselunga on via Prenestina: 2016, opened April 2017). Where the maps skip years the card gives the
-    window: 2013–2015, or from the survey to the map. It dates two groups:
+    window: 2013–2015, or from the survey to the map. It dates three groups:
     - **Under construction at the survey.** 501 DBGT buildings are drawn as under construction, 188 of them on
       sheets the 2014 pass did not redraw, so as of 2003. Those ISPRA first shows finished after their survey take
       that window (171 of the 2003 ones read 2003–2006). The rest stay "under construction" in the year of their
@@ -99,6 +104,10 @@ live site with the Chrome on this machine; run it again after the data changes, 
       or drew otherwise; those it never shows (about 4,000) are mostly too small for its maps, yards or car parks,
       or still building sites in 2021. Both are left out, as is anything finished after 2021. Their use is
       OpenStreetMap's `building` tag where it names one.
+    - **Built after 2006, with no census period.** A surveyed building ISPRA first shows after 2006 that the census
+      leaves without a period, because the section's 2006–2011 count is spent on its other new homes (it was finished
+      after the census, in October 2011) or because it is not a home, takes the window between the 2006 map and the
+      one that shows it, no later than the 2014 survey that drew it finished.
   - **Before 1919.** In the eight rioni laid out after 1870 (Esquilino to Prati) the census's oldest period becomes
     1871–1918. Elsewhere it stays "before 1919 or undated", its own colour, and appears on the timeline in 1870:
     such a building could be Roman or of 1910.

@@ -25,6 +25,12 @@ Rome has no register that dates each building, so dates come from four sources, 
                    the year of that survey
   by_hand          a landmark none of the above dates, or dates wrongly, dated from its history (BY_HAND): when its
                    present building was begun and finished, shown from the year it was finished
+  ispra_built      a surveyed building ISPRA's maps show no building on in 2006 and first show later, that the census
+                   leaves without a period (finished after October 2011, or not a home): the window between the maps
+
+ISPRA's maps also steer the census: a building they show new since 2006 takes the section's 2006–2011 period first,
+and a building standing in 2006 never does. Of the buildings the 2003 survey drew, 99.2% stand on the 2006 map and
+0.05% appear only from 2012.
 """
 import hashlib
 import re
@@ -40,9 +46,9 @@ from .periods import PERIODS, UNKNOWN, UNKNOWN_YEAR, period_index
 from .wikidata import ancient_ok, dates_its_building, founding_only, labels_of, parse_time, placed, span
 
 (FLAG_WIKIDATA, FLAG_WIKIDATA_APPROX, FLAG_CENSUS, FLAG_CENSUS_OLD, FLAG_ESTIMATED, FLAG_UNDATED, FLAG_CONSTRUCTION,
- FLAG_ISPRA, FLAG_ISPRA_NEW, FLAG_BY_HAND) = range(10)
+ FLAG_ISPRA, FLAG_ISPRA_NEW, FLAG_BY_HAND, FLAG_ISPRA_BUILT) = range(11)
 FLAGS = ["wikidata", "wikidata_approx", "census", "census_old", "estimated", "undated", "construction", "ispra",
-         "ispra_new", "by_hand"]
+         "ispra_new", "by_hand", "ispra_built"]
 MONUMENTS = ("monument", "fountain")
 CENSUS = 2011
 # Census buckets E8…E16: (variable, first year, last year). The last ends with the census, of October 2011.
@@ -103,22 +109,35 @@ def assign_census(b: gpd.GeoDataFrame, s: gpd.GeoDataFrame, rione: pd.Series) ->
     u_year = unit_hash(b.id, "year")
     counts = s.set_index("SEZ2011")[[k for k, _, _ in BUCKETS]]
     fresh_all = b.updated.values == SURVEY
+    # ISPRA's maps (s01): standing in 2006, or first seen later. A building the 2003 survey already drew stood then.
+    ispra = b.ispra.to_numpy()
+    seen06 = ispra == 2006
+    new06 = (ispra > 2006) & (ispra <= 2015) & fresh_all  # finished by 2014: a later first sighting is ISPRA's miss
     bucket = b.bucket.to_numpy().copy()
     for sez, idx in b[res].groupby("section").groups.items():
         c = counts.loc[sez].to_numpy(float)
         if c.sum() == 0:
             continue
         idx = np.asarray(idx)
+        # More new buildings than the census's 2006–2011 count: the last ISPRA saw were finished after the census
+        # (October 2011). They leave the census to ISPRA's own window (apply_ispra).
+        new = idx[new06[idx]]
+        n_last = quotas(c, len(idx))[-1]
+        if len(new) > n_last:
+            idx = np.setdiff1d(idx, new[np.lexsort((u_order[new], -ispra[new]))][:len(new) - n_last])
         q = quotas(c, len(idx))
-        # Newest periods first, to the buildings the 2014 survey added or redrew; after 2005 only to those,
-        # since the 2002–03 survey already saw the rest. Hash order breaks the ties.
-        order = idx[np.lexsort((u_order[idx], ~fresh_all[idx]))]
+        # Newest periods first: to the buildings ISPRA first shows after 2006, then to those the 2014 survey added or
+        # redrew; after 2005 never to one ISPRA shows standing in 2006, nor to one the 2002–03 survey already saw,
+        # and before 2006 never to one ISPRA had not yet seen. Hash order breaks the ties.
+        order = idx[np.lexsort((u_order[idx], ~fresh_all[idx], ~new06[idx]))]
         taken = np.zeros(len(order), bool)
         for k in range(len(BUCKETS) - 1, -1, -1):
             cand = np.where(~taken)[0]
             if k == len(BUCKETS) - 1:
-                cand = cand[fresh_all[order[cand]]]
+                cand = cand[fresh_all[order[cand]] & ~seen06[order[cand]]]
                 q[k - 1] += max(0, q[k] - len(cand))  # the surplus falls back a period
+            else:
+                cand = cand[~new06[order[cand]]]
             pick = cand[:q[k]]
             taken[pick] = True
             bucket[order[pick]] = k
@@ -228,18 +247,26 @@ def apply_by_hand(b: gpd.GeoDataFrame) -> None:
 
 
 def apply_ispra(b: gpd.GeoDataFrame) -> None:
-    """Buildings under construction at their survey, and the newer ones from OpenStreetMap, still undated: the
-    first year ISPRA's maps show them as a building (s01_load), when that comes after their survey."""
+    """Buildings under construction at their survey, the newer ones from OpenStreetMap, and the surveyed ones ISPRA
+    first shows after 2006 that nothing else dates: the first year ISPRA's maps show them as a building (s01_load),
+    when that comes after their survey; a finished building the 2014 survey drew is no later than 2014."""
     new = (b.kind == "osm").to_numpy()
-    since = np.where(new, 0, b.updated.to_numpy())
-    todo = np.where((b.date_flag.to_numpy() == -1) & (b.ispra.to_numpy() > since) & (new | (b.state == "01").to_numpy()))[0]
+    unfinished = (b.state == "01").to_numpy()
+    # Finished by the 2014 survey, so on the 2012 or the 2015 map: one ISPRA shows only later is one it missed.
+    built = ((b.kind == "edifc").to_numpy() & ~unfinished & (b.updated.to_numpy() == SURVEY)
+             & (b.ispra.to_numpy() > 2006) & (b.ispra.to_numpy() <= 2015))
+    since = np.where(new | built, 0, b.updated.to_numpy())
+    undated = b.date_flag.to_numpy() == -1
+    todo = np.where(undated & (b.ispra.to_numpy() > since) & (new | unfinished | built))[0]
     for i in todo:
         lo, hi = window(int(b.ispra.iat[i]), int(since[i]))
+        if built[i]:
+            lo, hi = min(lo, SURVEY), min(hi, SURVEY)
         b.iat[i, b.columns.get_loc("year")] = hi
         b.iat[i, b.columns.get_loc("y0")], b.iat[i, b.columns.get_loc("y1")] = lo, hi
-        b.iat[i, b.columns.get_loc("date_flag")] = FLAG_ISPRA_NEW if new[i] else FLAG_ISPRA
-    print("ispra:", int((~new[todo]).sum()), "buildings unfinished at their survey,", int(new[todo].sum()),
-          "newer than it, dated by the year ISPRA first shows them")
+        b.iat[i, b.columns.get_loc("date_flag")] = FLAG_ISPRA_NEW if new[i] else FLAG_ISPRA_BUILT if built[i] else FLAG_ISPRA
+    print("ispra:", int(unfinished[todo].sum()), "buildings unfinished at their survey,", int(new[todo].sum()),
+          "newer than it,", int(built[todo].sum()), "surveyed ones first seen after 2006, dated by the year ISPRA first shows them")
 
 
 def estimate_rest(b: gpd.GeoDataFrame) -> None:
@@ -250,8 +277,11 @@ def estimate_rest(b: gpd.GeoDataFrame) -> None:
     years, old = b.year.values[known], (b.date_flag.values[known] == FLAG_CENSUS_OLD)
     todo = np.where(b.date_flag.values == -1)[0]
     dist, nn = tree.query(pts[todo], k=12, distance_upper_bound=600)
+    seen06 = b.ispra.to_numpy() == 2006
     for row, d, n in zip(todo, dist, nn):
         ok = np.isfinite(d)
+        if seen06[row]:  # standing on ISPRA's 2006 map: dated by its neighbours of 2006 or earlier
+            ok &= np.where(ok, years[np.where(ok, n, 0)] <= 2006, False)
         if b.state.iat[row] == "02" or b.kind.iat[row] in MONUMENTS:
             b.iat[row, b.columns.get_loc("date_flag")] = FLAG_UNDATED
             b.iat[row, b.columns.get_loc("year")], b.iat[row, b.columns.get_loc("period")] = UNKNOWN_YEAR, UNKNOWN

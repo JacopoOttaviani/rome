@@ -32,7 +32,9 @@ def use_of(kind: str, use: str, ty: str) -> int:
         return INDEX["minor"]
     if kind in ("monument", "fountain"):
         return INDEX["monument"]
-    if ty in WORSHIP_TYPES or use.startswith("05"):
+    # The type is what the building was built as, the use what it is used for: a church building with a recorded use
+    # of its own is that (a school in a convent, a faculty in a former religious house, the Vittoriano's museum).
+    if use.startswith("05") or (ty in WORSHIP_TYPES and not use):
         return INDEX["worship"]
     if use.startswith("0301"):
         return INDEX["health"]

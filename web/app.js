@@ -23,7 +23,7 @@ const ATTR_W = 256;
 const WORKERS = Math.min(4, navigator.hardwareConcurrency || 2);
 const MODE = { period: 0, use: 2, layers: 3 }; // 1 was storeys, removed: height ÷ 3.2 m misread Rome's tall floors
 // Date flags (pipeline/s02_attributes.py). Approximate ones are drawn paler.
-const FLAG = { wikidata: 0, wikidataApprox: 1, census: 2, censusOld: 3, estimated: 4, undated: 5, construction: 6, ispra: 7, ispraNew: 8, byHand: 9 };
+const FLAG = { wikidata: 0, wikidataApprox: 1, census: 2, censusOld: 3, estimated: 4, undated: 5, construction: 6, ispra: 7, ispraNew: 8, byHand: 9, ispraBuilt: 10 };
 
 const [config, layers, attrBuf] = await Promise.all([
   fetch('data/rome.json').then(r => r.json()),
@@ -93,6 +93,8 @@ const IT_UI = {
     'Più recente del rilievo regionale del 2014: la pianta è di OpenStreetMap. L’anno è quello in cui le mappe del suolo dell’ISPRA mostrano per la prima volta un edificio qui, un intervallo dove le mappe saltano degli anni (non ce ne sono per il 2013–14). È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura.',
   'Dated by hand: no source the map reads dates this building rightly, so its years come from its history (Wikipedia): when its present building was begun and when it was finished. The map shows it from the year it was finished.':
     'Datato a mano: nessuna fonte letta dalla mappa data correttamente questo edificio, quindi gli anni vengono dalla sua storia (Wikipedia): quando l’edificio attuale fu iniziato e quando fu finito. La mappa lo mostra dall’anno in cui fu finito.',
+  'Built after 2006: ISPRA’s land maps show no building here in 2006 and first show one in the years given, the window between two of their maps. That is when the structure is visible from above, often a year or two before it opens. No other source dates this building on its own.':
+    'Costruito dopo il 2006: le mappe del suolo dell’ISPRA non mostrano un edificio qui nel 2006 e lo mostrano per la prima volta negli anni indicati, l’intervallo tra due loro mappe. È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura. Nessun’altra fonte data questo edificio.',
   'Follow me on LinkedIn': 'Seguimi su LinkedIn',
   'Hills': 'Colli', 'Show the hills': 'Mostra i colli', 'Flatten the city': 'Torna in piano',
   'Street or CAP': 'Via o CAP', 'Find a street or a postcode (CAP)': 'Cerca una via o un CAP', 'Streets': 'Strade',
@@ -492,6 +494,7 @@ const DATE_NOTE = [
   'Under construction when the region surveyed it. The years are the window in which ISPRA’s land maps first show a finished building here: from the survey, or the map before, to the first map that shows it. That is when the structure is visible from above, often a year or two before it opens.',
   'Newer than the region’s 2014 survey: the footprint is from OpenStreetMap. The year is when ISPRA’s land maps first show a building here, a window where the maps skip years (there are none for 2013–14). That is when the structure is visible from above, often a year or two before it opens.',
   'Dated by hand: no source the map reads dates this building rightly, so its years come from its history (Wikipedia): when its present building was begun and when it was finished. The map shows it from the year it was finished.',
+  'Built after 2006: ISPRA’s land maps show no building here in 2006 and first show one in the years given, the window between two of their maps. That is when the structure is visible from above, often a year or two before it opens. No other source dates this building on its own.',
 ];
 const contextLayers = layers;
 const groupsByBit = layers.flatMap(L => L.groups.map(g => ({ ...g, layer: L })));
@@ -1528,7 +1531,7 @@ function applyStaticText() {
   document.querySelector('.theme-toggle').setAttribute('aria-label', themeLabel);
   document.querySelector('.theme-toggle').title = themeLabel;
   const stats = { ...config.stats, wikidataAll: config.stats.wikidata + config.stats.wikidataApprox,
-    ispraAll: config.stats.ispra + config.stats.ispraNew };
+    ispraAll: config.stats.ispra + config.stats.ispraNew + (config.stats.ispraBuilt || 0) };
   document.querySelectorAll('[data-stat]').forEach(el => { el.textContent = fmt(stats[el.dataset.stat] ?? 0); });
   document.querySelectorAll('[data-lang-block]').forEach(a => { a.hidden = a.dataset.langBlock !== LANG; });
   document.querySelectorAll('.modes button[data-mode]').forEach(b => { b.textContent = t(b.dataset.label); });

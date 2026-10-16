@@ -160,9 +160,13 @@ BELONGS = {"worship": (("church", "basilica", "chapel", "oratory", "cathedral"),
 
 
 def to_their_buildings(p: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
-    from .uses import USES, use_of
-    b = gpd.read_parquet("data/buildings_raw.parquet", columns=["id", "kind", "ty", "use", "geometry"])
+    from .uses import USES, WORSHIP_TYPES, use_of
+    b = gpd.read_parquet("data/buildings_raw.parquet", columns=["id", "kind", "ty", "use", "uses", "geometry"])
     cat = pd.Series([USES[use_of(k, u, t)][0] for k, u, t in zip(b.kind, b.use, b.ty)], index=b.id.values)
+    # A church is a church by its building type or any religious use, whatever it is used for now (Trinità dei Monti
+    # is coloured as the convent's school).
+    church = b.ty.isin(WORSHIP_TYPES) | b.uses.map(lambda us: any(u.startswith("05") for u in us.split("|")))
+    cat[church.values] = "worship"
     minor = set(b.id[b.kind == "minor"])
     p = p.reset_index(drop=True)
     for want, (keys, unless) in BELONGS.items():

@@ -228,12 +228,15 @@ def main():
     b["ground"] = b.id.map(v.groupby("id").ground.min())
     b = b.drop(columns=["nparts"])
 
-    # The year ISPRA first shows each building the survey saw unfinished as a building (0: never, up to 2021).
+    # The year ISPRA first shows each building as a building (0: never, up to 2021): it dates the buildings the survey
+    # saw unfinished, and tells the census which buildings are new since 2006 (s02.assign_census).
     b["ispra"] = 0
+    regular = ((b.kind == "edifc") | (b.state == "01")).to_numpy()
+    b.loc[regular, "ispra"] = first_built(b.geometry[regular])
     unfinished = (b.state == "01").to_numpy()
-    b.loc[unfinished, "ispra"] = first_built(b.geometry[unfinished])
     print(f"{int(unfinished.sum())} buildings under construction at their survey; ISPRA first shows them finished:",
-          b.ispra[unfinished].value_counts().sort_index().to_dict())
+          b.ispra[unfinished].value_counts().sort_index().to_dict(), "| all buildings:",
+          b.ispra[regular].value_counts().sort_index().to_dict())
     nb, nv = newer(b, v)
     b = pd.concat([b, nb], ignore_index=True)
     v = pd.concat([v, nv], ignore_index=True)
