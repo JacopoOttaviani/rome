@@ -12,6 +12,10 @@ Monuments and large fountains (MN_MAU) come in as their own kinds, one part each
 
 Buildings newer than the survey come from OpenStreetMap, dated by ISPRA's maps; see newer(). Every building the
 survey saw under construction gets the year ISPRA first shows it finished, for s02 to date it.
+
+Where the survey says homes and the OpenStreetMap outline that matches the building says a church, a hotel, a school,
+a hospital, a cultural venue or a station, that category goes beside the survey's use, for the Use colouring; see
+osm_uses.
 """
 import glob
 from pathlib import Path
@@ -25,6 +29,7 @@ from scipy.spatial import cKDTree
 
 from .city import CRS, ISTAT, ISTAT_VATICAN, STOREY_M
 from .ispra import first_built
+from .osm_uses import correct
 from .uses import main_use
 
 RAW = Path("data/raw/dbt")
@@ -239,6 +244,7 @@ def main():
           b.ispra[regular].value_counts().sort_index().to_dict())
     nb, nv = newer(b, v)
     b = pd.concat([b, nb], ignore_index=True)
+    b = b.join(correct(b))  # use_osm, use_osm_tag, use_osm_ref: where OpenStreetMap names the survey's homes otherwise
     v = pd.concat([v, nv], ignore_index=True)
     assert b.id.is_unique
 

@@ -55,8 +55,11 @@ const IT_UI = {
     'Altezza da OpenStreetMap (altezza o piani indicati): l’edificio è più recente del rilievo.',
   'Height not known: the building is newer than the survey, and is drawn at the median height of its neighbours.':
     'Altezza non nota: l’edificio è più recente del rilievo ed è disegnato all’altezza mediana dei vicini.',
-  'What each building is used for, as the 2014 regional survey records it; for newer buildings, as OpenStreetMap does.':
-    'L’uso di ogni edificio come lo registra il rilievo regionale del 2014; per gli edifici più recenti, come lo registra OpenStreetMap.',
+  'What each building is used for, as the 2014 regional survey records it; for newer buildings, as OpenStreetMap does. Where the survey says homes and OpenStreetMap’s matching outline says church, hotel, school, hospital, cultural venue or station, the map follows OpenStreetMap: {n} buildings, each saying so on its card.':
+    'L’uso di ogni edificio come lo registra il rilievo regionale del 2014; per gli edifici più recenti, come lo registra OpenStreetMap. Dove il rilievo dice abitazioni e la pianta corrispondente di OpenStreetMap dice chiesa, albergo, scuola, ospedale, luogo di cultura o stazione, la mappa segue OpenStreetMap: {n} edifici, e la scheda di ciascuno lo dice.',
+  'The 2014 survey records homes here; OpenStreetMap’s outline of the building, which matches the survey’s, says {tag}, and the map follows it.':
+    'Qui il rilievo del 2014 registra abitazioni; la pianta dell’edificio su OpenStreetMap, che coincide con quella del rilievo, dice {tag}, e la mappa segue OpenStreetMap.',
+  '© OpenStreetMap contributors': '© contributori di OpenStreetMap',
   'Since 2001': 'Dal 2001',
   'Regione Lazio, geotopographic database 2014': 'Regione Lazio, database geotopografico 2014',
   // periods
@@ -536,6 +539,9 @@ function whenOf(b) {
 // Hover shows a light card that follows the pointer; a click pins it, with the article extract and links.
 let wiki = [];
 fetch('data/wiki.json').then(r => r.json()).then(w => { wiki = w; });
+// The survey's homes whose use comes from OpenStreetMap (pipeline/osm_uses.py): id → [outline, the tag that names it].
+let useOsm = {};
+fetch('data/use_osm.json').then(r => r.json()).then(u => { useOsm = u; });
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const link = (href, text) => `<a href="${esc(href)}" target="_blank" rel="noopener">${esc(text)}</a>`;
 
@@ -581,13 +587,15 @@ function cardHtml(gid, pinned) {
   const w = b.wk >= 0 ? wiki[b.wk] : null;
   const im = w?.image?.thumb ? w.image : null;
   const period = periods[b.period] || periods[0];
+  const osmUse = useOsm[b.id];
   const heightNote = b.hsrc === 2 ? t('Height not surveyed; drawn at a default height.')
     : b.hsrc === 1 ? t('Height from Wikidata; the survey drew the footprint only.')
     : b.hsrc === 3 ? t('Height from OpenStreetMap (its height or storeys): the building is newer than the survey.')
     : b.hsrc === 4 ? t('Height not known: the building is newer than the survey, and is drawn at the median height of its neighbours.') : '';
   const facts = [
     [t('Height'), `${b.height.toFixed(1)} m${heightNote ? `<br><span class="why">${heightNote}</span>` : ''}`],
-    b.use && [t('Use'), esc(t(config.uses.labels[b.use]))],
+    b.use && [t('Use'), `${esc(t(config.uses.labels[b.use]))}${osmUse ? `<br><span class="why">${t('The 2014 survey records homes here; OpenStreetMap’s outline of the building, which matches the survey’s, says {tag}, and the map follows it.')
+      .replace('{tag}', pinned ? link(`https://www.openstreetmap.org/${osmUse[0]}`, osmUse[1]) : esc(osmUse[1]))}</span>` : ''}`],
     w?.architects?.length && [t(w.architects.length > 1 ? 'Architects' : 'Architect'), w.architects.map(esc).join(', ')],
     w?.styles?.length && [t('Style'), w.styles.map(esc).join(', ')],
   ].filter(Boolean);
@@ -1297,8 +1305,9 @@ function renderPanel() {
     const u = config.uses;
     panel.innerHTML = `<h2>${t('Use')}</h2><div class="energy-scale">${u.labels.map((l, i) => i === 0 ? '' : `
       <div><i style="background:${useColors()[i]}"></i><span>${esc(t(l))}</span><span class="n">${fmt(u.counts[i])}</span></div>`).join('')}</div>
-      <p class="note">${t('What each building is used for, as the 2014 regional survey records it; for newer buildings, as OpenStreetMap does.')}</p>
-      <a class="src" href="https://dati.lazio.it/dataset/2014-carta-tecnica-regionale-numerica-scala-1-5-000-provincia-di-roma" target="_blank" rel="noopener">${t('Regione Lazio, geotopographic database 2014')}</a>`;
+      <p class="note">${t('What each building is used for, as the 2014 regional survey records it; for newer buildings, as OpenStreetMap does. Where the survey says homes and OpenStreetMap’s matching outline says church, hotel, school, hospital, cultural venue or station, the map follows OpenStreetMap: {n} buildings, each saying so on its card.').replace('{n}', fmt(config.stats.useOsm || 0))}</p>
+      <a class="src" href="https://dati.lazio.it/dataset/2014-carta-tecnica-regionale-numerica-scala-1-5-000-provincia-di-roma" target="_blank" rel="noopener">${t('Regione Lazio, geotopographic database 2014')}</a><br>
+      <a class="src" href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">${t('© OpenStreetMap contributors')}</a>`;
   } else if (!activeLayer) {
     const sections = [...new Set(contextLayers.map(L => L.section))].sort((a, b) => SECTION_ORDER.indexOf(a) - SECTION_ORDER.indexOf(b));
     const secTitle = sec => tr(contextLayers.find(L => L.section === sec), 'section');

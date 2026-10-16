@@ -27,9 +27,9 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s00_fetch_dbt` | Buildings, volumes, monuments and water of the Lazio geotopographic database (DBGT 2014), read out of the region's per-sheet zips with HTTP range requests |
 | `s00_fetch_istat` | ISTAT 2011 census sections for Lazio, their outlines and building counts by period of construction |
 | `s00_fetch_wikidata` | Every Wikidata item with a coordinate in Rome: dates, architects, styles, heritage status, heights, photos |
-| `s00_fetch_osm` | The 22 rioni (Nominatim), named streets (Overpass; when the public Overpass servers are busy, as they were in October 2026, Geofabrik's extract of central Italy) building footprints, the addresses that carry a postcode, every named street of the comune for the search, and parks, gardens, woods and meadows (the extract) |
+| `s00_fetch_osm` | The 22 rioni (Nominatim), named streets (Overpass; when the public Overpass servers are busy, as they were in October 2026, Geofabrik's extract of central Italy) building footprints, the addresses that carry a postcode, every named street of the comune for the search, parks, gardens, woods and meadows, and the building outlines tagged as churches, hotels, schools, hospitals, cultural venues or stations (the extract) |
 | `s00_fetch_ispra` | ISPRA's land-consumption series for Roma Capitale, 2006–2021: Rome's built-up land, polygon by polygon, with its class each year |
-| `s01_load` | DBGT sheets → one row per building and its volume units (LoD1 parts with eaves heights); the buildings finished since, from OpenStreetMap; the year ISPRA's maps first show each unfinished or newer building |
+| `s01_load` | DBGT sheets → one row per building and its volume units (LoD1 parts with eaves heights); the buildings finished since, from OpenStreetMap; the year ISPRA's maps first show each unfinished or newer building; OpenStreetMap's category for the survey's homes whose matching outline says otherwise (`osm_uses`) |
 | `s02_attributes` | Dates every building (see below), and its height |
 | `s05_layers` | Resolves every context layer to a bit per building; adds Italian texts |
 | `s06_wiki` | Names, photos and extracts from Wikidata, Wikipedia and Commons; survey names for the rest |
@@ -125,6 +125,17 @@ live site with the Chrome on this machine; run it again after the data changes, 
   hospital, ministry or embassy, school, church, culture, military, shop, hotel, industry, farm, other public
   services, homes. A building with homes and another use takes the other one, as most of them already listed it first.
   The churches and embassies layers read every use: a church inside a school is still in the churches layer.
+  Where the survey says homes and OpenStreetMap clearly says otherwise, the Use colouring follows OpenStreetMap
+  (`osm_uses`): 458 buildings, of them 205 schools, 100 hotels, 82 churches and convents, 35 hospitals and clinics,
+  27 museums, theatres, cinemas, libraries and sports halls, and 9 stations. The survey building must have homes as its
+  only use; it and an OpenStreetMap building outline must cover each other by at least 60%, one to one; and the
+  outline's tags must name one of those six categories: what the building is used for (`amenity`, `tourism`,
+  `leisure`, `healthcare`, `railway`, `public_transport`, `aeroway`) first, then what it was built as (`building`).
+  Shops, industry, farms and offices are never corrected (`building=commercial` on a block of flats with shops below
+  says little), nor are sports centres (in Rome the tag marks gyms, bocce and shooting clubs), nor an outline whose own
+  `building` tag says homes (a B&B in a block of flats). The survey's use is kept beside OpenStreetMap's; the card
+  names the tag and links the outline. Dates do not move, since the census still reads the survey's homes, and the
+  churches layer still reads the survey's uses only.
 - **Heights.** Every DBGT volume unit carries its eaves height; a building's height is its tallest volume above its
   lowest base. Monuments (the Colosseum, arches, columns) are drawn by the survey without a
   height: they take Wikidata's (P2048) where it has one, else a default of 8 m (3 m for fountains), and their cards
@@ -160,7 +171,7 @@ live site with the Chrome on this machine; run it again after the data changes, 
 
 Code: MIT (see [LICENSE](LICENSE)). Data keeps the licence of its source: Regione Lazio DBGT 2014 CC BY 4.0; ISTAT
 census data CC BY 4.0; Wikidata CC0; Wikipedia text CC BY-SA; Wikimedia Commons photos each under their own licence,
-credited in the app; OpenStreetMap © OpenStreetMap contributors, ODbL (the rioni, `web/data/labels.json` and the
-footprints of the buildings newer than the survey are derived from it and stay under the ODbL). ISPRA's
+credited in the app; OpenStreetMap © OpenStreetMap contributors, ODbL (the rioni, `web/data/labels.json`,
+`web/data/use_osm.json` and the footprints of the buildings newer than the survey are derived from it and stay under the ODbL). ISPRA's
 land-consumption series for Roma Capitale carries no licence on its download page; ISPRA confirmed in October 2026 that
 it can be reused for this map (its national land-consumption maps are CC BY 4.0).

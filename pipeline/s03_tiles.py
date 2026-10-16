@@ -20,7 +20,7 @@ import shapely
 
 from .city import ORIGIN
 from .periods import PERIODS
-from .uses import USES, use_of
+from .uses import INDEX, USES, use_of
 
 TILE = 600.0
 SIMPLIFY = 0.25
@@ -87,7 +87,8 @@ def main():
     b = gpd.read_parquet("data/buildings.parquet")
     b = b.merge(pd.read_parquet("data/layers.parquet"), on="id", how="left")
     b[["lay0", "lay1"]] = b[["lay0", "lay1"]].fillna(0)
-    b["use_class"] = [use_of(k, u, t) for k, u, t in zip(b.kind, b.use, b.ty)]
+    # The survey's use, or OpenStreetMap's where the survey says homes and the matching outline clearly says otherwise.
+    b["use_class"] = [INDEX[o] if o else use_of(k, u, t) for o, k, u, t in zip(b.use_osm, b.kind, b.use, b.ty)]
     q = gpd.read_parquet("data/parts.parquet")
     gid = {k: i for i, k in enumerate(b.id)}
 
@@ -153,6 +154,10 @@ def main():
     attrs["x"], attrs["z"] = cen[:, 0], cen[:, 1]
     attrs["hsrc"] = b.hsrc.map({"survey": 0, "wikidata": 1, "default": 2, "osm": 3, "neighbours": 4}).fillna(0).astype(int)
     (OUT / "attrs.bin").write_bytes(attrs.tobytes())
+    # For the cards of the buildings whose use comes from OpenStreetMap: id → [its outline, the tag that names it].
+    fixed = b[b.use_osm != ""]
+    (OUT / "use_osm.json").write_text(json.dumps({i: [r, t] for i, r, t in zip(fixed.id, fixed.use_osm_ref, fixed.use_osm_tag)},
+                                                 separators=(",", ":")))
 
     years = b.year.to_numpy()
     hist = {}
@@ -174,7 +179,7 @@ def main():
                    census=int((flags == 2).sum()), censusOld=int((flags == 3).sum()), estimated=int((flags == 4).sum()),
                    undated=int((flags == 5).sum()), construction=int((flags == 6).sum()),
                    ispra=int((flags == 7).sum()), ispraNew=int((flags == 8).sum()), ispraBuilt=int((flags == 10).sum()),
-                   surveyed=int((b.kind != "osm").sum()), newer=int((b.kind == "osm").sum()),
+                   surveyed=int((b.kind != "osm").sum()), newer=int((b.kind == "osm").sum()), useOsm=len(fixed),
                    residential=int(((flags == 2) | (flags == 3)).sum())),
     )
     (OUT / "rome.json").write_text(json.dumps(config, ensure_ascii=False, separators=(",", ":")).replace('"from_"', '"from"'))

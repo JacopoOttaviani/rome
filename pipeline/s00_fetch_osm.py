@@ -1,6 +1,7 @@
 """OpenStreetMap data (ODbL): the 22 rioni of central Rome, named streets and squares for the map's labels, and
 building footprints, the source of the buildings newer than the 2014 survey (s01_load); for the search box, every named
-street of the comune and the addresses that carry a postcode; parks, gardens, woods and meadows for the green areas.
+street of the comune and the addresses that carry a postcode; parks, gardens, woods and meadows for the green areas;
+the building outlines tagged as churches, hotels, schools, hospitals, cultural venues and stations, for the Use colouring.
 
 Rioni come from Nominatim, one polite request a second; streets from the Overpass API, in tiles, retried when
 the public servers are busy, or else read out of Geofabrik's extract of central Italy; buildings from the extract.
@@ -171,6 +172,34 @@ def green():
     print(len(g), "green areas:", g.kind.value_counts().to_dict())
 
 
+def building_uses():
+    """The building outlines in the comune's box whose tags name a strong use (osm_uses: a church, a hotel, a school,
+    a hospital, a cultural venue, a station), for the Use colouring's correction of the survey's homes (s01_load)."""
+    import geopandas as gpd
+    import pyogrio
+    from .osm_uses import BUILT_AS, KEYS, USE_TAGS
+    s, w, n, e = ROME_BOX
+    values = {}
+    for _, keys in USE_TAGS:
+        for k, vs in keys.items():
+            values.setdefault(k, set()).update(vs)
+    values["building"] = set().union(*(vs for _, vs in BUILT_AS))
+    columns = ["amenity", "tourism", "leisure", "aeroway", "building"]  # the extract's own columns; the rest are in other_tags
+    where = [f"{k} IN ({', '.join(repr(v) for v in sorted(vs))})" for k, vs in values.items() if k in columns]
+    where += [f"other_tags LIKE '%\"{k}\"=>\"{v}\"%'" for k, vs in values.items() if k not in columns for v in sorted(vs)]
+    b = pyogrio.read_dataframe(extract(), layer="multipolygons", bbox=(w, s, e, n),
+                               columns=["osm_id", "osm_way_id", "name", *columns, "other_tags"],
+                               where=f"building IS NOT NULL AND ({' OR '.join(where)})")
+    t = b.other_tags.map(tags)
+    for k in KEYS:
+        if k not in columns:
+            b[k] = t.map(lambda d: d.get(k))
+    way, rel = pd.to_numeric(b.osm_way_id), pd.to_numeric(b.osm_id)
+    b["osm"] = [f"way/{int(x)}" if x == x else f"relation/{int(r)}" for x, r in zip(way, rel)]
+    gpd.GeoDataFrame(b[["osm", "name", "building", *KEYS]], geometry=b.geometry, crs=4326).to_parquet(OUT / "building_uses.parquet")
+    print(len(b), "building outlines with a use tag")
+
+
 def streets_extract():
     import pyogrio
     pbf = extract()
@@ -215,7 +244,8 @@ def streets_overpass():
 def main():
     import sys
     OUT.mkdir(parents=True, exist_ok=True)
-    for step in sys.argv[1:] or ["rioni", "streets", "buildings", "postcodes", "search_streets", "green"]:
+    for step in sys.argv[1:] or ["rioni", "streets", "buildings", "postcodes", "search_streets", "green",
+                                     "building_uses"]:
         globals()[step]()
 
 
