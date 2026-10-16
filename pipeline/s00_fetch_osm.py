@@ -1,5 +1,6 @@
 """OpenStreetMap data (ODbL): the 22 rioni of central Rome, named streets and squares for the map's labels, and
-building footprints, the source of the buildings newer than the 2014 survey (s01_load).
+building footprints, the source of the buildings newer than the 2014 survey (s01_load); for the search box, every named
+street of the comune and the addresses that carry a postcode; parks, gardens, woods and meadows for the green areas.
 
 Rioni come from Nominatim, one polite request a second; streets from the Overpass API, in tiles, retried when
 the public servers are busy, or else read out of Geofabrik's extract of central Italy; buildings from the extract.
@@ -113,9 +114,61 @@ def postcodes():
     areas = pyogrio.read_dataframe(extract(), layer="multipolygons", bbox=(w, s, e, n), columns=["other_tags"], where=where)
     areas["geometry"] = areas.geometry.representative_point()
     a = pd.concat([pts, areas], ignore_index=True)
-    a["cap"] = a.other_tags.map(lambda o: tags(o).get("addr:postcode", "").strip())
-    gpd.GeoDataFrame(a[["cap"]], geometry=a.geometry, crs=4326).to_parquet(OUT / "postcodes.parquet")
+    t = a.other_tags.map(tags)
+    a["cap"] = t.map(lambda d: d.get("addr:postcode", "").strip())
+    a["street"] = t.map(lambda d: d.get("addr:street", "").strip())
+    gpd.GeoDataFrame(a[["cap", "street"]], geometry=a.geometry, crs=4326).to_parquet(OUT / "postcodes.parquet")
     print(len(a), "addresses with a postcode")
+
+
+# Ways that are not streets one can look up: unbuilt, platforms, corridors inside buildings, motorway services.
+NOT_STREETS = {"construction", "proposed", "abandoned", "razed", "platform", "corridor", "elevator", "bus_stop",
+               "raceway", "rest_area", "services", "emergency_bay"}
+
+
+def search_streets():
+    """Every named street, path and square in the comune's box, for the street search (s10_streets): the ways with their
+    highway class, and the squares drawn as areas."""
+    import geopandas as gpd
+    import pyogrio
+    s, w, n, e = ROME_BOX
+    lines = pyogrio.read_dataframe(extract(), layer="lines", bbox=(w, s, e, n), columns=["osm_id", "name", "highway"],
+                                   where="name IS NOT NULL AND highway IS NOT NULL")
+    lines = lines[~lines.highway.isin(NOT_STREETS)]
+    polys = pyogrio.read_dataframe(extract(), layer="multipolygons", bbox=(w, s, e, n),
+                                   columns=["osm_way_id", "name", "place", "other_tags"], where="name IS NOT NULL")
+    hw = polys.other_tags.map(lambda o: tags(o).get("highway", ""))
+    polys = polys[(polys.place == "square") | (hw == "pedestrian")].copy()
+    polys["highway"] = "square"
+    polys["geometry"] = polys.geometry.boundary
+    polys["osm_id"] = polys.osm_way_id
+    a = pd.concat([lines, polys[["osm_id", "name", "highway", "geometry"]]], ignore_index=True)
+    a["name"] = a.name.str.strip()
+    gpd.GeoDataFrame(a, geometry="geometry", crs=4326).to_parquet(OUT / "search_streets.parquet")
+    print(len(lines), "named ways and", len(polys), "squares,", a.name.nunique(), "names")
+
+
+# What the green areas show, by OSM tag: parks, gardens and woods, and the grass and meadows between them. Farmland,
+# orchards and vineyards stay out (the Agro Romano would paint half the comune), and so do nature reserves and protected
+# areas, whose outlines take in fields, roads and houses: their woods and meadows show on their own.
+GREEN = {
+    "leisure": ["park", "garden", "golf_course", "recreation_ground"],
+    "landuse": ["forest", "grass", "meadow", "village_green", "recreation_ground"],
+    "natural": ["wood", "grassland", "scrub", "heath"],
+}
+
+
+def green():
+    """The parks, gardens, woods and meadows in the comune's box (GREEN), for the green areas (s10_green)."""
+    import geopandas as gpd
+    import pyogrio
+    s, w, n, e = ROME_BOX
+    where = " OR ".join(f"{k} IN ({', '.join(repr(v) for v in vs)})" for k, vs in GREEN.items())
+    g = pyogrio.read_dataframe(extract(), layer="multipolygons", bbox=(w, s, e, n),
+                               columns=["osm_id", "osm_way_id", "name", "leisure", "landuse", "natural"], where=where)
+    g["kind"] = g.leisure.fillna(g.landuse).fillna(g.natural)
+    gpd.GeoDataFrame(g[["name", "kind"]], geometry=g.geometry, crs=4326).to_parquet(OUT / "green.parquet")
+    print(len(g), "green areas:", g.kind.value_counts().to_dict())
 
 
 def streets_extract():
@@ -162,7 +215,7 @@ def streets_overpass():
 def main():
     import sys
     OUT.mkdir(parents=True, exist_ok=True)
-    for step in sys.argv[1:] or ["rioni", "streets", "buildings", "postcodes"]:
+    for step in sys.argv[1:] or ["rioni", "streets", "buildings", "postcodes", "search_streets", "green"]:
         globals()[step]()
 
 

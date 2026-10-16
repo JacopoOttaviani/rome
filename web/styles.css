@@ -400,26 +400,50 @@ h1 { margin: 0; padding: 5px 12px 6px; font-size: clamp(34px, 4.4vw, 56px); font
   .terrain-toggle { top: calc(env(safe-area-inset-top, 0px) + 165px); right: 14px; padding: 4px 9px 4px 7px; }
 }
 
-/* The postcode search: a pill under "Roma". A CAP flies the camera to its addresses and leaves a pin there.
-   16px text, so a phone does not zoom the page when the field takes focus. */
-.cap-search { pointer-events: auto; display: flex; align-items: center; gap: 7px; width: 150px; height: 34px; margin-top: 8px;
-  padding: 0 12px 0 11px; background: var(--paper); border-radius: 999px; box-shadow: 0 1px 0 var(--rule); }
-.cap-search:focus-within { box-shadow: 0 0 0 1.5px var(--ink); }
-.cap-search svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.7; stroke-linecap: round; }
-.cap-search input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ink); outline: none;
-  font: inherit; font-size: 16px; font-weight: 700; letter-spacing: .02em; font-variant-numeric: tabular-nums; }
-.cap-search input::placeholder { color: var(--muted); font-weight: 500; letter-spacing: 0; }
-.cap-search input:focus-visible { outline: none; }
-.cap-search input::-webkit-calendar-picker-indicator { display: none !important; } /* suggestions still open as you type */
-.cap-msg { pointer-events: auto; width: fit-content; max-width: 220px; margin: 6px 0 0; padding: 4px 10px; border-radius: 8px;
+/* The search: a pill under "Roma". Five digits fly the camera to a postcode, words to a street; a pin marks the place.
+   16px text, so a phone does not zoom the page when the field takes focus. Above the panel, so the suggestions cover it. */
+.masthead { z-index: 5; }
+.search { position: relative; pointer-events: auto; display: flex; align-items: center; gap: 7px; width: 220px; height: 34px;
+  margin-top: 8px; padding: 0 12px 0 11px; background: var(--paper); border-radius: 999px; box-shadow: 0 1px 0 var(--rule); }
+.search:focus-within { box-shadow: 0 0 0 1.5px var(--ink); }
+.search svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.7; stroke-linecap: round; }
+.search input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ink); outline: none;
+  font: inherit; font-size: 16px; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+.search input::placeholder { color: var(--muted); font-weight: 500; letter-spacing: 0; }
+.search input:focus-visible { outline: none; }
+/* Suggestions: a sheet of paper under the pill, the name on the left and its postcode on the right. */
+.search-list { position: absolute; left: 0; top: calc(100% + 6px); width: 320px; max-width: calc(100vw - 2 * var(--gutter));
+  margin: 0; padding: 5px; list-style: none; background: var(--paper); border-radius: 10px;
+  box-shadow: 0 1px 0 var(--rule), 0 8px 24px var(--shadow); }
+.search-list[hidden] { display: none; }
+.search-list li { display: flex; align-items: baseline; gap: 10px; padding: 6px 9px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.search-list li .nm { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
+.search-list li .cap { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.search-list li[aria-selected="true"] { background: var(--sky); }
+@media (hover: hover) { .search-list li:hover { background: var(--sky); } }
+.search-msg { pointer-events: auto; width: fit-content; max-width: 240px; margin: 6px 0 0; padding: 4px 10px; border-radius: 8px;
   background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; box-shadow: 0 1px 0 var(--rule); }
-.cap-msg[hidden] { display: none; }
-/* The pin: its tip on the ground at the postcode's middle, the CAP beside its head. Under the panels and cards. */
-.cap-pin { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
-.cap-pin[hidden] { display: none; }
-.cap-pin svg { position: absolute; left: -13px; top: -35px; width: 26px; height: 35px; overflow: visible;
+.search-msg[hidden] { display: none; }
+@media (max-width: 720px) { .search { width: min(220px, calc(100vw - 212px)); } } /* clear of the language bar */
+/* The pin: its tip on the ground at the postcode's middle or the street's, the name beside its head. Under the panels and cards. */
+.pin { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.pin[hidden] { display: none; }
+.pin svg { position: absolute; left: -13px; top: -35px; width: 26px; height: 35px; overflow: visible;
   filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .3)); }
-.cap-pin path { fill: var(--red); stroke: var(--paper); stroke-width: 1.5; }
-.cap-pin circle { fill: var(--paper); }
-.cap-pin b { position: absolute; left: 15px; top: -36px; padding: 2px 7px; border-radius: 6px; background: var(--paper); color: var(--ink);
-  font-size: 13px; font-weight: 800; letter-spacing: .02em; font-variant-numeric: tabular-nums; box-shadow: 0 1px 0 var(--rule), 0 3px 10px var(--shadow); }
+.pin path { fill: var(--red); stroke: var(--paper); stroke-width: 1.5; }
+.pin circle { fill: var(--paper); }
+.pin b { position: absolute; left: 15px; top: -36px; padding: 2px 7px; border-radius: 6px; background: var(--paper); color: var(--ink);
+  font-size: 13px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 0 var(--rule), 0 3px 10px var(--shadow); }
+
+/* Green areas: a pill under Hills, the same make, filled while the parks and woods are on the ground. */
+.green-toggle { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 245px);
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 9px; border: 0; border-radius: 999px;
+  background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 0 var(--rule); }
+.green-toggle svg { width: 16px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+.green-toggle:hover { box-shadow: 0 0 0 1.5px var(--ink); }
+.green-toggle[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.green-toggle.loading { opacity: .55; cursor: progress; }
+@media (max-width: 720px) {
+  .green-toggle { top: calc(env(safe-area-inset-top, 0px) + 199px); right: 14px; padding: 4px 9px 4px 7px; }
+}

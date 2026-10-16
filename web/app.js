@@ -6,10 +6,10 @@ THREE.ColorManagement.enabled = false;
 
 // Light and dark: the model, its ground and its labels. Building colours stay the same in both.
 const THEMES = {
-  light: { sky: '#e4e8ea', land: '#f4f3ef', water: '#b5c7c6', maquette: '#efeee9', minor: null,
+  light: { sky: '#e4e8ea', land: '#f4f3ef', water: '#b5c7c6', maquette: '#efeee9', minor: null, green: '#c9dab3', found: '#ec0000',
     street: ['#50565b', 'rgba(244,243,239,0.85)'], river: ['#3c6875', 'rgba(181,199,198,0.85)'],
     histText: '#5d6266', histMark: '#000000', histGrey: '#b9c0c4', contour: '#8c8270' },
-  dark: { sky: '#121417', land: '#1a1d21', water: '#1d3439', maquette: '#2c3034', minor: '#4d5359',
+  dark: { sky: '#121417', land: '#1a1d21', water: '#1d3439', maquette: '#2c3034', minor: '#4d5359', green: '#223528', found: '#ff4b3e',
     street: ['#b3b9bd', 'rgba(26,29,33,0.85)'], river: ['#8ab6bf', 'rgba(29,52,57,0.85)'],
     histText: '#9aa1a6', histMark: '#f2f2ef', histGrey: '#3a3f44', contour: '#59616a' },
 };
@@ -93,7 +93,9 @@ const IT_UI = {
     'Più recente del rilievo regionale del 2014: la pianta è di OpenStreetMap. L’anno è quello in cui le mappe del suolo dell’ISPRA mostrano per la prima volta un edificio qui, un intervallo dove le mappe saltano degli anni (non ce ne sono per il 2013–14). È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura.',
   'Follow me on LinkedIn': 'Seguimi su LinkedIn',
   'Hills': 'Colli', 'Show the hills': 'Mostra i colli', 'Flatten the city': 'Torna in piano',
-  'Your CAP': 'Il tuo CAP', 'Fly to a postcode (CAP)': 'Vola a un CAP', 'Not a postcode in Rome': 'Non è un CAP di Roma',
+  'Street or CAP': 'Via o CAP', 'Find a street or a postcode (CAP)': 'Cerca una via o un CAP', 'Streets': 'Strade',
+  'Not a postcode in Rome': 'Non è un CAP di Roma', 'No street by that name in Rome': 'Nessuna strada con questo nome a Roma',
+  'Green': 'Verde', 'Show the green areas': 'Mostra le aree verdi', 'Hide the green areas': 'Nascondi le aree verdi',
 };
 let LANG = (() => {
   const q = new URLSearchParams(location.search).get('lang');
@@ -133,26 +135,35 @@ function goHome() {
 }
 goHome();
 
-// Land and water: flat polygons in the local frame (see pipeline/s04_water.py).
+// Land, water and the green areas: flat polygons in the local frame (see pipeline/s04_water.py). Each is triangulated
+// straight into one buffer, wound as ShapeGeometry would (outline clockwise, holes not, seen from above):
+// ShapeGeometry itself takes seconds over the green areas' hundred thousand pieces.
 async function loadPolygons(url) {
   const buf = await (await fetch(url)).arrayBuffer();
   const [nPoly, nRing, nVert] = new Uint32Array(buf, 0, 3);
   const ringStart = new Uint32Array(buf, 12, nPoly + 1);
   const vertStart = new Uint32Array(buf, 12 + 4 * (nPoly + 1), nRing + 1);
   const xz = new Float32Array(buf, 12 + 4 * (nPoly + 1) + 4 * (nRing + 1), 2 * nVert);
-  const ring = r => {
-    const pts = [];
-    for (let v = vertStart[r]; v < vertStart[r + 1]; v++) pts.push(new THREE.Vector2(xz[2 * v], -xz[2 * v + 1]));
-    return pts;
+  const pos = new Float32Array(3 * nVert), index = [];
+  for (let v = 0; v < nVert; v++) { pos[3 * v] = xz[2 * v]; pos[3 * v + 2] = xz[2 * v + 1]; }
+  // A ring as the shape's points (x, -z) and the vertices they are, turned clockwise or not.
+  const ring = (r, clockwise) => {
+    const pts = [], ids = [];
+    for (let v = vertStart[r]; v < vertStart[r + 1]; v++) { pts.push(new THREE.Vector2(xz[2 * v], -xz[2 * v + 1])); ids.push(v); }
+    if (THREE.ShapeUtils.isClockWise(pts) !== clockwise) { pts.reverse(); ids.reverse(); }
+    return [pts, ids];
   };
-  const shapes = [];
   for (let p = 0; p < nPoly; p++) {
-    const shape = new THREE.Shape(ring(ringStart[p]));
-    for (let r = ringStart[p] + 1; r < ringStart[p + 1]; r++) shape.holes.push(new THREE.Path(ring(r)));
-    shapes.push(shape);
+    const [outer, ids] = ring(ringStart[p], true), holes = [];
+    for (let r = ringStart[p] + 1; r < ringStart[p + 1]; r++) {
+      const [pts, hids] = ring(r, false);
+      holes.push(pts); ids.push(...hids);
+    }
+    for (const f of THREE.ShapeUtils.triangulateShape(outer, holes)) index.push(ids[f[0]], ids[f[1]], ids[f[2]]);
   }
-  const g = new THREE.ShapeGeometry(shapes);
-  g.rotateX(-Math.PI / 2);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  g.setIndex(new THREE.BufferAttribute(new Uint32Array(index), 1));
   return g;
 }
 const flat = new THREE.Group();
@@ -754,6 +765,43 @@ const RELIEF = 2;
 const terrainBtn = document.querySelector('.terrain-toggle');
 let terrain = null, terrainOn = false, terrainAnim = null;
 
+// What lies on the ground (the water, a street found) follows it onto the hills: each vertex takes the
+// height of the ground beneath it. The height grid arrives with the hills; until then nothing reads it.
+const groundU = {
+  uTerrain: uniforms.uTerrain,
+  uHeight: { value: new THREE.DataTexture(new Float32Array(4), 2, 2, THREE.RedFormat, THREE.FloatType) },
+  uGrid: { value: new THREE.Vector3(0, 0, 1) },
+};
+const HEIGHT_AT = /* glsl */`
+  uniform float uTerrain; uniform sampler2D uHeight; uniform vec3 uGrid;
+  float heightAt(vec2 xz) {
+    ivec2 s = textureSize(uHeight, 0);
+    vec2 f = clamp((xz - uGrid.xy) / uGrid.z, vec2(0.0), vec2(s - 2));
+    ivec2 i = ivec2(floor(f)); vec2 u = f - vec2(i);
+    float a = texelFetch(uHeight, i, 0).r, b = texelFetch(uHeight, i + ivec2(1, 0), 0).r;
+    float c = texelFetch(uHeight, i + ivec2(0, 1), 0).r, d = texelFetch(uHeight, i + ivec2(1, 1), 0).r;
+    return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
+  }`;
+// A flat polygon mesh (rotated into the ground plane by loadPolygons) on the hills, `lift` metres above the ground.
+function onGround(material, lift) {
+  material.onBeforeCompile = sh => {
+    Object.assign(sh.uniforms, groundU, { uLift: { value: lift } });
+    sh.vertexShader = sh.vertexShader.replace('void main() {', `${HEIGHT_AT}
+      uniform float uLift;
+      void main() {`).replace('#include <begin_vertex>', `#include <begin_vertex>
+      if (uTerrain > 0.0) transformed.y += uTerrain * (heightAt(position.xz) + uLift);`);
+  };
+}
+onGround(water.material, 0.8);
+// The green areas on the hills: the ground itself turns green under a mask of them, drawn once from above (see Green
+// areas). Polygons laid over the slopes would cut through the ground's 80 m mesh, whose cells twist by metres.
+const greenU = {
+  uGreenMask: { value: Object.assign(new THREE.DataTexture(new Uint8Array(4), 1, 1), { needsUpdate: true }) },
+  uGreenBox: { value: new THREE.Vector4(0, 0, 1, 1) }, // the mask's extent: x and z from, x and z to
+  uGreenOn: { value: 0 },
+  uGreenColor: { value: col(TH.green) },
+};
+
 async function loadTerrain() {
   const buf = await (await fetch('data/terrain.bin')).arrayBuffer();
   const dv = new DataView(buf);
@@ -801,7 +849,7 @@ async function loadTerrain() {
   const groundMat = new THREE.ShaderMaterial({
     glslVersion: THREE.GLSL3,
     uniforms: { uTerrain: uniforms.uTerrain, uFogColor: uniforms.uFogColor, uFog: uniforms.uFog, uRelief: { value: RELIEF },
-      uLand: { value: col(TH.land) }, uWater: { value: col(TH.water) }, uLine: { value: col(TH.contour) } },
+      uLand: { value: col(TH.land) }, uWater: { value: col(TH.water) }, uLine: { value: col(TH.contour) }, ...greenU },
     vertexShader: /* glsl */`
       in vec3 grad;
       in float kind;
@@ -819,6 +867,7 @@ async function loadTerrain() {
       precision highp float;
       uniform float uTerrain, uRelief;
       uniform vec3 uLand, uWater, uLine, uFogColor;
+      uniform sampler2D uGreenMask; uniform vec4 uGreenBox; uniform float uGreenOn; uniform vec3 uGreenColor;
       uniform vec2 uFog;
       in vec3 vN; in vec3 vW; in float vKind; in float vH;
       out vec4 outColor;
@@ -828,6 +877,10 @@ async function loadTerrain() {
         // The same low sun from the south-west as the buildings: sunny slopes lighter, the lee darker.
         float sun = dot(n, normalize(vec3(-0.55, 0.55, 0.62)));
         vec3 c = vKind > 1.5 ? uWater : uLand;
+        if (uGreenOn > 0.0 && vKind < 1.5) { // the green areas, from their mask (north is up in it)
+          vec2 uv = vec2(vW.x - uGreenBox.x, uGreenBox.w - vW.z) / (uGreenBox.zw - uGreenBox.xy);
+          c = mix(c, uGreenColor, smoothstep(0.25, 0.75, texture(uGreenMask, uv).r) * uGreenOn);
+        }
         c *= max(0.45, 1.0 + 1.6 * (sun - 0.552) * uTerrain);
         // A thin line every 10 m of real height, a stronger one every 50 m.
         float m = vH / uRelief, t = m / 10.0, T = m / 50.0;
@@ -843,22 +896,10 @@ async function loadTerrain() {
   ground.frustumCulled = false;
   flat.add(ground); // in the flat group, so picking leaves it out like the land
 
-  // The water follows the valley: its outline's vertices take the height of the ground beneath, plus a little.
+  // The water follows the valley, and the green areas and a street found their slopes (see onGround).
+  groundU.uHeight.value = heightTex;
+  groundU.uGrid.value.set(x0, z0, cell);
   water.material.polygonOffset = true; water.material.polygonOffsetFactor = -2; water.material.polygonOffsetUnits = -2;
-  water.material.onBeforeCompile = sh => {
-    Object.assign(sh.uniforms, { uTerrain: uniforms.uTerrain, uHeight: { value: heightTex }, uGrid: { value: new THREE.Vector3(x0, z0, cell) } });
-    sh.vertexShader = sh.vertexShader.replace('void main() {', `uniform float uTerrain; uniform sampler2D uHeight; uniform vec3 uGrid;
-      float heightAt(vec2 xz) {
-        ivec2 s = textureSize(uHeight, 0);
-        vec2 f = clamp((xz - uGrid.xy) / uGrid.z, vec2(0.0), vec2(s - 2));
-        ivec2 i = ivec2(floor(f)); vec2 u = f - vec2(i);
-        float a = texelFetch(uHeight, i, 0).r, b = texelFetch(uHeight, i + ivec2(1, 0), 0).r;
-        float c = texelFetch(uHeight, i + ivec2(0, 1), 0).r, d = texelFetch(uHeight, i + ivec2(1, 1), 0).r;
-        return mix(mix(a, b, u.x), mix(c, d, u.x), u.y);
-      }
-      void main() {`).replace('#include <begin_vertex>', `#include <begin_vertex>
-      transformed.y += uTerrain * (heightAt(position.xz) + 0.8);`);
-  };
   water.material.needsUpdate = true;
   return { at, ground, groundMat };
 }
@@ -883,7 +924,7 @@ async function setTerrain(on) {
     try { terrain = await loadTerrain(); } finally { terrainBtn.classList.remove('loading'); }
   }
   terrainOn = on;
-  if (on) { terrain.ground.visible = true; land.visible = false; }
+  if (on) { terrain.ground.visible = true; land.visible = false; syncGreen(); }
   terrainAnim = { t0: performance.now(), from: uniforms.uTerrain.value, to: on ? 1 : 0 };
   syncTerrainBtn();
 }
@@ -896,7 +937,7 @@ function stepTerrain(now) {
   for (const l of labels) if (l.mesh) l.mesh.position.y = labelY(l);
   if (k < 1) return;
   terrainAnim = null;
-  if (!terrainOn) { terrain.ground.visible = false; land.visible = true; }
+  if (!terrainOn) { terrain.ground.visible = false; land.visible = true; syncGreen(); }
 }
 
 function stepFlight(now) {
@@ -907,54 +948,294 @@ function stepFlight(now) {
   if (k >= 1) { const d = flight.done; flight = null; d?.(); }
 }
 
-// ---------- Postcode search ----------
-// A CAP flies the camera to the middle of the addresses OpenStreetMap files under it (pipeline/s09_postcodes.py)
-// and leaves a pin there. Rome has no open map of its postcode areas: the pin marks a middle, not a boundary.
-const capForm = document.querySelector('.cap-search'), capInput = capForm.querySelector('input');
-const capMsg = document.querySelector('.cap-msg'), capPin = document.querySelector('.cap-pin');
-let postcodes = {}, capAt = null;
-fetch('data/postcodes.json').then(r => r.json()).then(p => {
-  postcodes = p;
-  document.getElementById('caps').innerHTML = Object.keys(p).map(c => `<option value="${c}">`).join('');
-}).catch(() => {});
+// ---------- Search ----------
+// One box under "Roma", for postcodes and streets. Five digits fly to a CAP: the middle of the addresses OpenStreetMap
+// files under it (pipeline/s09_postcodes.py), where a pin stands; Rome has no open map of its postcode areas, so the
+// pin marks a middle, not a boundary. Words look up a street, square or path of the comune (pipeline/s10_streets.py),
+// loaded when the box is first used: the camera flies there, the street is drawn in red along its length, the pin
+// stands on it.
+const searchForm = document.querySelector('.search'), searchInput = searchForm.querySelector('input');
+const searchList = document.getElementById('search-list');
+const searchMsg = document.querySelector('.search-msg'), pinEl = document.querySelector('.pin');
+let postcodes = {}, pinAt = null, msgKey = null;
+fetch('data/postcodes.json').then(r => r.json()).then(p => { postcodes = p; }).catch(() => {});
+function setMsg(key) {
+  msgKey = key;
+  searchMsg.hidden = !key;
+  if (key) searchMsg.textContent = t(key);
+}
+// The keyboard down and the sheet folded on a phone, so the place is in view.
+function leaveForMap() {
+  collapsePanelOnPhone();
+  if (phone.matches) searchInput.blur();
+}
+
 function findCap(cap) {
-  capMsg.hidden = true;
+  setMsg(null);
+  clearStreet();
   if (cap === '00100') { // Rome's general CAP: the whole city
-    capAt = null;
+    pinAt = null;
     flyTo(config.home.x, config.home.z, null, config.home.span * 0.9);
     return;
   }
   const p = postcodes[cap];
-  if (!p) { capAt = null; capMsg.textContent = t('Not a postcode in Rome'); capMsg.hidden = false; return; }
+  if (!p) { pinAt = null; setMsg('Not a postcode in Rome'); return; }
   const [x, z, spread] = p;
-  capAt = { x, z };
-  capPin.querySelector('b').textContent = cap;
-  collapsePanelOnPhone();
-  if (phone.matches) capInput.blur(); // the keyboard down, the city in view
+  pinAt = { x, z };
+  pinEl.querySelector('b').textContent = cap;
+  leaveForMap();
   flyTo(x, z, null, THREE.MathUtils.clamp(spread * 2.8, 900, 9000));
 }
-// Digits only; the fifth one flies, and so does Enter (or Go) once there are five.
-capInput.addEventListener('input', () => {
-  const v = capInput.value.replace(/\D/g, '').slice(0, 5);
-  if (v !== capInput.value) capInput.value = v;
-  capMsg.hidden = true;
-  if (!v) capAt = null;
-  if (v.length === 5) findCap(v);
-});
-capForm.addEventListener('submit', e => {
-  e.preventDefault();
-  if (capInput.value.length === 5) findCap(capInput.value);
-});
-// The pin stands on the ground, on the hills when they are up, drawn over the canvas where the camera sees it.
-const capV = new THREE.Vector3();
-function stepCapPin() {
-  if (!capAt) { capPin.hidden = true; return; }
-  const k = uniforms.uTerrain.value;
-  capV.set(capAt.x, k && terrain ? k * terrain.at(capAt.x, capAt.z) : 0, capAt.z).project(camera);
-  const on = capV.z < 1 && Math.abs(capV.x) < 1.1 && Math.abs(capV.y) < 1.1;
-  capPin.hidden = !on;
-  if (on) capPin.style.transform = `translate(${((capV.x + 1) / 2 * innerWidth).toFixed(1)}px, ${((1 - capV.y) / 2 * innerHeight).toFixed(1)}px)`;
+
+// Names compared without case, accents or apostrophes ("campo de fiori" finds Campo de' Fiori), and also by what a
+// street is called after its kind and article: "Via dei Fori Imperiali" is "fori imperiali", "Via del Corso" "corso".
+const fold = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+const KIND = /^(via|viale|vicolo|vicoletto|piazza|piazzale|piazzetta|largo|corso|lungotevere|lungomare|circonvallazione|clivo|salita|scalinata|scesa|discesa|strada|stradone|borgo|galleria|ponte|rampa|passeggiata|passaggio|traversa|viadotto|vialetto|arco|cortile|gradinata|sottopassaggio|belvedere) /;
+const ARTICLE = /^(di|del|della|dello|dei|degli|delle|de|d|dell|da|dal|dalla|al|alla|ai|agli|alle) /;
+// OpenStreetMap mostly spells a closing ordinal out: "giovanni xxiii" finds Viale Giovanni Ventitreesimo, and back.
+const ORDINAL = { primo: 'i', secondo: 'ii', terzo: 'iii', quarto: 'iv', quinto: 'v', sesto: 'vi', settimo: 'vii', ottavo: 'viii',
+  nono: 'ix', decimo: 'x', undicesimo: 'xi', dodicesimo: 'xii', tredicesimo: 'xiii', quattordicesimo: 'xiv', quindicesimo: 'xv',
+  sedicesimo: 'xvi', ventitreesimo: 'xxiii' };
+const NUMERAL = Object.fromEntries(Object.entries(ORDINAL).map(([w, n]) => [n, w]));
+function otherOrdinal(key) {
+  const i = key.lastIndexOf(' '), last = key.slice(i + 1), other = ORDINAL[last] || NUMERAL[last];
+  return i > 0 && other ? `${key.slice(0, i)} ${other}` : '';
 }
+let streets = null, streetsLoading = null;
+function loadStreets() {
+  return streetsLoading ??= fetch('data/streets.json').then(r => r.json()).then(list => {
+    streets = list.map(([name, cap, rank, x, z, r, parts]) => {
+      const key = fold(name);
+      return { name, cap, rank, x, z, r, parts, key, alt: otherOrdinal(key), base: key.replace(KIND, '').replace(ARTICLE, '') };
+    });
+  }).catch(() => { streetsLoading = null; });
+}
+// Best first: the whole name, or what the street is called; then names that start so; then names with a word starting
+// with each word typed; then names that hold it anywhere. Among equals the main roads, then the longest (the file's order).
+const hasWord = (key, w) => key.startsWith(w) || key.includes(' ' + w);
+function matchStreets(q) {
+  const f = fold(q), words = f.split(' ');
+  if (f.length < 2) return [];
+  const hits = [];
+  streets.forEach((s, i) => {
+    const score = s.key === f || s.base === f || s.alt === f ? 0
+      : s.key.startsWith(f) || s.base.startsWith(f) || (s.alt && s.alt.startsWith(f)) ? 1
+      : words.every(w => hasWord(s.key, w)) || (s.alt && words.every(w => hasWord(s.alt, w))) ? 2
+      : s.key.includes(f) || (s.alt && s.alt.includes(f)) ? 3 : -1;
+    if (score >= 0) hits.push([score, i]);
+  });
+  hits.sort((a, b) => a[0] - b[0] || a[1] - b[1]);
+  return hits.slice(0, 8).map(([, i]) => streets[i]);
+}
+
+// The suggestions under the box: arrows move through them, Enter or a click picks one, Escape closes them.
+let options = [], active = -1;
+function showOptions(list) {
+  options = list;
+  searchList.innerHTML = list.map((o, i) => `<li role="option" id="search-opt-${i}" aria-selected="false">
+    <span class="nm">${esc(o.label)}</span>${o.note ? `<span class="cap">${esc(o.note)}</span>` : ''}</li>`).join('');
+  searchList.hidden = !list.length;
+  searchInput.setAttribute('aria-expanded', String(!!list.length));
+  setActive(list.length ? 0 : -1);
+}
+function setActive(i) {
+  active = i;
+  [...searchList.children].forEach((li, j) => li.setAttribute('aria-selected', String(j === i)));
+  if (i < 0) { searchInput.removeAttribute('aria-activedescendant'); return; }
+  searchInput.setAttribute('aria-activedescendant', `search-opt-${i}`);
+  searchList.children[i].scrollIntoView({ block: 'nearest' });
+}
+const closeList = () => { if (options.length) showOptions([]); };
+function choose(o) {
+  searchInput.value = o.label;
+  closeList();
+  o.go();
+}
+function onSearch() {
+  const v = searchInput.value.trim();
+  setMsg(null);
+  if (!v) { closeList(); pinAt = null; clearStreet(); return; }
+  if (/^\d+$/.test(v)) { // a postcode: the fifth digit flies
+    if (v.length >= 5) { closeList(); findCap(v); return; }
+    showOptions(Object.keys(postcodes).filter(c => c.startsWith(v)).sort().slice(0, 8).map(c => ({ label: c, note: 'CAP', go: () => findCap(c) })));
+    return;
+  }
+  if (!streets) { loadStreets().then(() => { if (streets && searchInput.value.trim() === v) onSearch(); }); return; }
+  const hits = matchStreets(v);
+  showOptions(hits.map(s => ({ label: s.name, note: s.cap, go: () => findStreet(s) })));
+  if (!hits.length && fold(v).length >= 3) setMsg('No street by that name in Rome');
+}
+searchInput.addEventListener('focus', loadStreets);
+searchInput.addEventListener('input', onSearch);
+searchInput.addEventListener('keydown', e => {
+  if (!options.length) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    setActive((active + (e.key === 'ArrowDown' ? 1 : options.length - 1)) % options.length);
+  } else if (e.key === 'Escape') {
+    e.preventDefault(); e.stopPropagation(); // closes the list, leaves the text and any card as they are
+    closeList();
+  }
+});
+searchInput.addEventListener('blur', () => setTimeout(closeList, 150));
+searchForm.addEventListener('submit', e => {
+  e.preventDefault();
+  if (options[active]) choose(options[active]);
+});
+searchList.addEventListener('mousedown', e => e.preventDefault()); // the box keeps the focus
+searchList.addEventListener('click', e => {
+  const li = e.target.closest('li');
+  if (li) choose(options[[...searchList.children].indexOf(li)]);
+});
+
+// The street found: a red band on the ground along its whole length, under the names and some 6 px wide on screen
+// (uWidth, set every frame), solid where the street is in view and faint where buildings stand in front of it.
+const foundU = { uWidth: { value: 4 }, uColor: { value: col(TH.found) } };
+function foundMaterial(opacity, depthTest) {
+  return new THREE.ShaderMaterial({
+    glslVersion: THREE.GLSL3,
+    uniforms: { ...groundU, ...foundU, uOpacity: { value: opacity } },
+    vertexShader: /* glsl */`
+      in vec2 side;
+      uniform float uWidth;
+      ${HEIGHT_AT}
+      void main() {
+        vec3 p = position + vec3(side.x, 0.0, side.y) * uWidth;
+        p.y = 0.3 + (uTerrain > 0.0 ? uTerrain * (heightAt(position.xz) + 2.5) : 0.0);
+        gl_Position = projectionMatrix * viewMatrix * modelMatrix * vec4(p, 1.0);
+      }`,
+    fragmentShader: /* glsl */`
+      precision highp float;
+      uniform vec3 uColor;
+      uniform float uOpacity;
+      out vec4 outColor;
+      void main() { outColor = vec4(uColor, uOpacity); }`,
+    transparent: opacity < 1, depthTest, depthWrite: false, side: THREE.DoubleSide,
+  });
+}
+// A band two vertices wide along each line; at a bend the two sides meet on the bisector, lengthened so the band keeps
+// its width (up to twice, at a hairpin).
+function streetGeometry(s) {
+  const pos = [], side = [], idx = [];
+  const normal = (p, q) => { const dx = q[0] - p[0], dz = q[1] - p[1], l = Math.hypot(dx, dz) || 1; return [-dz / l, dx / l]; };
+  for (const part of s.parts) {
+    const pts = [];
+    for (let k = 0, x = s.x, z = s.z; k < part.length; k += 2) pts.push([x += part[k], z += part[k + 1]]);
+    if (pts.length < 2) continue;
+    const first = pos.length / 3;
+    pts.forEach((p, k) => {
+      const n0 = k > 0 && normal(pts[k - 1], p), n1 = k < pts.length - 1 && normal(p, pts[k + 1]);
+      let [nx, nz] = n0 && n1 ? [n0[0] + n1[0], n0[1] + n1[1]] : n0 || n1;
+      if (n0 && n1) {
+        const l = Math.hypot(nx, nz);
+        if (l < 1e-3) [nx, nz] = n1;
+        else { const f = Math.min(2 / (l * l), 2 / l); nx *= f; nz *= f; }
+      }
+      pos.push(p[0], 0, p[1], p[0], 0, p[1]);
+      side.push(nx, nz, -nx, -nz);
+      if (k) { const v = first + 2 * k; idx.push(v - 2, v - 1, v, v - 1, v + 1, v); }
+    });
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('side', new THREE.BufferAttribute(new Float32Array(side), 2));
+  g.setIndex(idx);
+  return g;
+}
+let found = null;
+function clearStreet() {
+  if (!found) return;
+  flat.remove(found);
+  found.children[0].geometry.dispose();
+  for (const m of found.children) m.material.dispose();
+  found = null;
+}
+function findStreet(s) {
+  setMsg(null);
+  clearStreet();
+  const g = streetGeometry(s);
+  found = new THREE.Group();
+  for (const [opacity, depthTest] of [[1, true], [0.25, false]]) {
+    const m = new THREE.Mesh(g, foundMaterial(opacity, depthTest));
+    m.renderOrder = 1;          // under the street names
+    m.frustumCulled = false;    // the band is widened, and lifted onto the hills, in the shader
+    found.add(m);
+  }
+  flat.add(found);              // in the flat group, so picking leaves it out like the land
+  pinAt = { x: s.x, z: s.z };
+  pinEl.querySelector('b').textContent = s.name;
+  leaveForMap();
+  flyTo(s.x, s.z, null, THREE.MathUtils.clamp(s.r * 2.8, 450, 9000));
+}
+
+// The pin stands on the ground, on the hills when they are up, drawn over the canvas where the camera sees it.
+const pinV = new THREE.Vector3();
+function stepPin() {
+  if (!pinAt) { pinEl.hidden = true; return; }
+  const k = uniforms.uTerrain.value;
+  pinV.set(pinAt.x, k && terrain ? k * terrain.at(pinAt.x, pinAt.z) : 0, pinAt.z).project(camera);
+  const on = pinV.z < 1 && Math.abs(pinV.x) < 1.1 && Math.abs(pinV.y) < 1.1;
+  pinEl.hidden = !on;
+  if (on) pinEl.style.transform = `translate(${((pinV.x + 1) / 2 * innerWidth).toFixed(1)}px, ${((1 - pinV.y) / 2 * innerHeight).toFixed(1)}px)`;
+}
+
+// ---------- Green areas ----------
+// Parks, gardens, woods and meadows from OpenStreetMap (pipeline/s11_green.py), off by default. The button lays them on
+// the land in a soft green, under the buildings and the street names; farmland is left out. On the hills the mesh steps
+// aside and the ground turns green under a mask of it (greenU). Loaded on first use.
+const greenBtn = document.querySelector('.green-toggle');
+let green = null, greenOn = false, greenMasked = false;
+function syncGreenBtn() {
+  const label = t(greenOn ? 'Hide the green areas' : 'Show the green areas');
+  greenBtn.setAttribute('aria-pressed', String(greenOn));
+  greenBtn.setAttribute('aria-label', label); greenBtn.title = label;
+  greenBtn.querySelector('span').textContent = t('Green');
+}
+// The mask: the green areas drawn white on black, from straight above, north up, some 13 m to the pixel.
+function drawGreenMask() {
+  const g = green.geometry;
+  g.computeBoundingBox();
+  const b = g.boundingBox, w = b.max.x - b.min.x, d = b.max.z - b.min.z;
+  const k = Math.min(4096, renderer.capabilities.maxTextureSize) / Math.max(w, d);
+  const target = new THREE.WebGLRenderTarget(Math.round(w * k), Math.round(d * k),
+    { format: THREE.RedFormat, type: THREE.UnsignedByteType, depthBuffer: false });
+  const eye = new THREE.OrthographicCamera(b.min.x, b.max.x, -b.min.z, -b.max.z, -10, 10);
+  eye.up.set(0, 0, -1); eye.position.set(0, 5, 0); eye.lookAt(0, 0, 0);
+  const white = new THREE.MeshBasicMaterial({ color: 0xffffff, side: THREE.DoubleSide });
+  const stage = new THREE.Scene().add(new THREE.Mesh(g, white));
+  renderer.setRenderTarget(target);
+  renderer.setClearColor(0x000000, 1);
+  renderer.render(stage, eye);
+  renderer.setRenderTarget(null);
+  renderer.setClearColor(TH.sky, 1);
+  white.dispose();
+  greenU.uGreenMask.value = target.texture;
+  greenU.uGreenBox.value.set(b.min.x, b.min.z, b.max.x, b.max.z);
+}
+// The mesh lies on the flat land; while the hills' ground is up (rising, standing or settling) the ground is green instead.
+function syncGreen() {
+  if (!green) return;
+  const hills = !!terrain?.ground.visible;
+  green.visible = greenOn && !hills;
+  if (greenOn && hills && !greenMasked) { drawGreenMask(); greenMasked = true; }
+  greenU.uGreenOn.value = greenOn ? 1 : 0;
+}
+async function setGreen(on) {
+  if (on && !green) {
+    greenBtn.classList.add('loading');
+    try {
+      // Drawn just in front of the land it lies on (polygon offset), so the two never flicker.
+      const mat = new THREE.MeshBasicMaterial({ color: TH.green, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+      green = new THREE.Mesh(await loadPolygons('data/green.bin'), mat);
+      green.position.y = -0.05;
+      flat.add(green);
+    } catch { return; } finally { greenBtn.classList.remove('loading'); }
+  }
+  greenOn = on;
+  syncGreen();
+  syncGreenBtn();
+}
+greenBtn.onclick = () => { if (!greenBtn.classList.contains('loading')) setGreen(!greenOn); };
 
 // ---------- Panel ----------
 const panelEl = document.getElementById('panel');
@@ -1235,9 +1516,11 @@ function applyStaticText() {
   compassBtn.setAttribute('aria-label', t('North up')); compassBtn.title = t('North up');
   spinShown = null; syncSpinBtn(); // relabels the spin button in the new language
   syncTerrainBtn();
-  capInput.placeholder = t('Your CAP');
-  capInput.setAttribute('aria-label', t('Fly to a postcode (CAP)'));
-  if (!capMsg.hidden) capMsg.textContent = t('Not a postcode in Rome');
+  searchInput.placeholder = t('Street or CAP');
+  searchInput.setAttribute('aria-label', t('Find a street or a postcode (CAP)'));
+  searchList.setAttribute('aria-label', t('Streets'));
+  if (msgKey) searchMsg.textContent = t(msgKey);
+  syncGreenBtn();
   const themeLabel = t(themeName() === 'dark' ? 'Light mode' : 'Dark mode');
   document.querySelector('.theme-toggle').setAttribute('aria-label', themeLabel);
   document.querySelector('.theme-toggle').title = themeLabel;
@@ -1284,6 +1567,9 @@ function applyTheme() {
   uniforms.uMaquette.value.set(TH.maquette);
   uniforms.uFogColor.value.set(TH.sky);
   uniforms.uUse.value = useColors().map(col);
+  if (green) green.material.color.set(TH.green);
+  greenU.uGreenColor.value.set(TH.green);
+  foundU.uColor.value.set(TH.found);
   // Street names are drawn into textures: drop them, and they are redrawn in the new colours on next use.
   for (const l of labels) if (l.mesh) { labelGroup.remove(l.mesh); l.mesh.material.dispose(); l.mesh = null; }
   for (const tex of labelTex.values()) tex.dispose();
@@ -1315,9 +1601,10 @@ renderer.setAnimationLoop(now => {
   uniforms.uMask.value = maskTarget;
   controls.update();
   updateCompass();
-  stepCapPin();
+  stepPin();
   const dist = camera.position.distanceTo(controls.target);
   uniforms.uFog.value.set(dist * 1.6, dist * 4);
+  foundU.uWidth.value = Math.max(1.2, 2 * dist / innerHeight); // half the band: about 3 px on screen, at least 1.2 m
   if (frame % 6 === 0) updateLabels(dist);
   if (playing) {
     const t = Math.min(1, playT0 + (now - playStart) / DURATION);
@@ -1336,4 +1623,5 @@ renderer.setAnimationLoop(now => {
 });
 
 
-window.__dbg = { pick, uniforms, camera, controls, setLayer, layers, pinCard, showCard, building, labelGroup, labels, flyTo, startPlay, gidOf };
+window.__dbg = { pick, uniforms, camera, controls, setLayer, layers, pinCard, showCard, building, labelGroup, labels, flyTo, startPlay, gidOf,
+  setGreen, setTerrain, loadStreets, matchStreets, findStreet };
