@@ -93,7 +93,7 @@ live site with the Chrome on this machine; run it again after the data changes, 
     new since 2006 take ISPRA's window. Homes of the 2003 survey stay with the census, and where they alone already
     outnumber what it can describe, the survey only draws an old area finer than the census counts it (the INA-Casa
     Tuscolano), so nothing is taken out. The colour is the census's period, the year is
-    spread within it for the timeline; "after 2005" ends with the census, in October 2011. 144,000 buildings are dated
+    spread within it for the timeline; "after 2005" ends with the census, in October 2011. 142,000 buildings are dated
     this way, so read the map as the age of a neighbourhood more than of a single house.
   - **ISPRA's land maps.** ISPRA's land-consumption series for Roma Capitale draws the city's built-up land in 2006,
     2012 and every year from 2015 to 2021, each polygon with its class that year (open land, building site, building,
