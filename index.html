@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Rome, building by building</title>
+<meta name="description" content="Every building in Rome by age and historical context: a 3D map from open data.">
+<meta name="author" content="Jacopo Ottaviani">
+<meta name="color-scheme" content="light dark">
+<!-- Link previews (WhatsApp, Slack, social): the image is made by scripts/og-image.mjs. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Jacopo Ottaviani">
+<meta property="og:title" content="Rome, building by building">
+<meta property="og:description" content="Every building in Rome, some 250,000 with the Vatican inside, in 3D and coloured by age and historical context. A map built from open data.">
+<meta property="og:url" content="https://jacopoottaviani.com/rome/">
+<meta property="og:image" content="https://jacopoottaviani.com/rome/og-image.jpg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:alt" content="A 3D map of Rome's buildings coloured by age: the historic centre in reds inside the bend of the Tiber, with St Peter's and the Colosseum, and newer districts in yellow, green and blue around it.">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:site" content="@JacopoOttaviani">
+<meta name="twitter:creator" content="@JacopoOttaviani">
+<meta name="twitter:title" content="Rome, building by building">
+<meta name="twitter:description" content="Every building in Rome, some 250,000 with the Vatican inside, in 3D and coloured by age and historical context. A map built from open data.">
+<meta name="twitter:image" content="https://jacopoottaviani.com/rome/og-image.jpg">
+<meta name="twitter:image:alt" content="A 3D map of Rome's buildings coloured by age: the historic centre in reds inside the bend of the Tiber, with St Peter's and the Colosseum, and newer districts in yellow, green and blue around it.">
+<script>/* The reader's chosen theme, before the first paint. */ try { var th = localStorage.getItem('theme'); if (th === 'dark' || th === 'light') document.documentElement.dataset.theme = th; } catch (e) {}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Schibsted+Grotesk:wght@400;500;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+</head>
+<body>
+<canvas id="scene" aria-label="3D map of Rome's buildings"></canvas>
+<div class="pin" hidden aria-hidden="true">
+  <svg viewBox="0 0 24 32"><path d="M12 31s-9-10.2-9-17.5a9 9 0 0 1 18 0C21 20.8 12 31 12 31z"/><circle cx="12" cy="13.2" r="3.4"/></svg>
+  <b></b>
+</div>
+
+<header class="masthead">
+  <div>
+    <h1>Roma</h1>
+    <form class="search" role="search" autocomplete="off">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.8" cy="6.8" r="4.6"/><path d="M10.3 10.3 14 14"/></svg>
+      <input type="search" placeholder="Street or CAP" aria-label="Find a street or a postcode (CAP)" role="combobox"
+        aria-autocomplete="list" aria-expanded="false" aria-controls="search-list" enterkeyhint="go" spellcheck="false" autocapitalize="off">
+      <ul id="search-list" class="search-list" role="listbox" aria-label="Streets" hidden></ul>
+    </form>
+    <p class="search-msg" role="status" hidden></p>
+  </div>
+</header>
+
+<nav class="modes" aria-label="Colour the city by">
+  <button data-mode="0" aria-pressed="true">Period</button>
+  <button data-mode="3" aria-pressed="false">Context layers</button>
+  <button data-mode="2" aria-pressed="false">Use</button>
+</nav>
+
+<div class="lang" role="group" aria-label="Language">
+  <button class="about-open" aria-haspopup="dialog">About</button>
+  <button class="spin-toggle" aria-pressed="false" aria-label="Spin the city" title="Spin the city">
+    <svg class="spin-on" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.3 8.4A5.3 5.3 0 1 1 11.7 4.2"/><path d="M12.4 1.5v3.2H9.2"/></svg>
+    <svg class="spin-off" viewBox="0 0 16 16" aria-hidden="true"><rect x="4.4" y="4.4" width="7.2" height="7.2" rx="1.2"/></svg>
+  </button>
+  <button class="theme-toggle" aria-label="Dark mode" title="Dark mode">
+    <svg class="moon" viewBox="0 0 16 16" aria-hidden="true"><path d="M13.5 9.6A5.8 5.8 0 0 1 6.4 2.5a5.8 5.8 0 1 0 7.1 7.1z"/></svg>
+    <svg class="sun" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="3"/><path d="M8 1.2v1.6M8 13.2v1.6M1.2 8h1.6M13.2 8h1.6M3.2 3.2l1.1 1.1M11.7 11.7l1.1 1.1M3.2 12.8l1.1-1.1M11.7 4.3l1.1-1.1"/></svg>
+  </button>
+  <button data-lang="en" aria-pressed="true">EN</button><button data-lang="it" aria-pressed="false">IT</button>
+</div>
+
+<dialog id="about" class="about" aria-labelledby="about-title">
+  <button class="about-close" aria-label="Close">×</button>
+  <article lang="en" data-lang-block="en">
+    <h2 id="about-title">About</h2>
+    <p class="lede">All <span data-stat="surveyed"></span> buildings of Rome, and of the Vatican City inside it, as the region surveyed them in 2014, and <span data-stat="newer"></span> finished since: coloured by when they were built and set in the history that shaped them.</p>
+    <div class="maker">
+      <p class="author">Made with 💙 by <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a></p>
+      <p class="bio">Italian data journalist and computer scientist, Chief Data Officer at Code for Africa. Builds investigative stories with data, code, maps and AI, published in The Guardian, Der Spiegel, El País and Internazionale.</p>
+      <div class="ctas"><a class="cta cta-coffee" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="steam" d="M7.5 6.2c-.9-1 .9-1.8 0-3"/><path class="steam" d="M10.5 6.2c-.9-1 .9-1.8 0-3"/><path d="M3.5 8h11v4a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z"/><path d="M14.5 9h1a2 2 0 0 1 0 4h-1"/></svg><span>Buy me a coffee</span></a><a class="cta cta-in" href="https://www.linkedin.com/in/jacopo-ottaviani/" target="_blank" rel="noopener" title="Follow me on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg><span>LinkedIn</span></a></div>
+    </div>
+    <h3>Inspired by</h3>
+    <p class="credit"><a href="https://github.com/alexbarakov/amsterdam-by-building" target="_blank" rel="noopener">Amsterdam, building by building</a> by Alex Barakov, whose code (MIT licence) this map adapts to Rome, itself inspired by Sasha Bogachev’s <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a>.</p>
+    <h3>Data</h3>
+    <ul class="sources">
+      <li>Buildings, heights, uses, monuments: Regione Lazio, geotopographic database 2014. CC BY 4.0.</li>
+      <li>Periods of construction: ISTAT, 2011 census by section. CC BY 4.0.</li>
+      <li>Names, dates, architects, photos: Wikidata (CC0), Wikipedia (CC BY-SA), Wikimedia Commons (credited per photo).</li>
+      <li>Rioni, streets and their names, postcodes (each placed at the middle of the addresses filed under it), green areas (parks, gardens, woods and meadows, not farmland), the footprints of buildings newer than the survey, and the use of <span data-stat="useOsm"></span> buildings the survey records as homes but whose matching OpenStreetMap outline says church, hotel, school, hospital, cultural venue or station: © OpenStreetMap contributors. ODbL.</li>
+      <li>When buildings under construction in 2014, and newer ones, were finished: ISPRA, land-consumption maps of Roma Capitale, 2006–2021.</li>
+    </ul>
+    <details>
+      <summary>How the buildings are dated</summary>
+      <p>Rome has no register that dates each building, as Amsterdam and Paris do. Every building’s card says which source dated it.</p>
+      <ul>
+        <li><b>Wikidata</b> dates <span data-stat="wikidataAll"></span> buildings from their own entries: monuments, churches, palaces. A building still being built in 2014 takes its opening date. A museum or university housed in an older building gives its founding, not the building’s date, and is left out.</li>
+        <li><b>The 2011 census</b> counts each section’s residential buildings by period of construction. The section’s homes get those periods in the same proportions, the newest to the homes ISPRA’s land maps first show after 2006: the period is the census’s, which house got which is an estimate. Where the survey draws far more homes than the census counts, a district built since or not yet lived in, the census dates at most one and a half times its count; the rest, added or redrawn since 2003 and standing on ISPRA’s 2006 map, read 2003–2006 and are drawn faded (<span data-stat="surveyNew"></span> buildings) (<span data-stat="census"></span> buildings). Read the colours as the age of a neighbourhood more than of a single house.</li>
+        <li><b>Before 1919 or undated.</b> In the eight rioni laid out after 1870 the census’s “before 1919” becomes 1871–1918. Elsewhere it stays undated (<span data-stat="censusOld"></span> buildings), with ruins, monuments and fountains no source dates, and appears on the timeline in 1870.</li>
+        <li><b>ISPRA’s land maps</b> of Rome, for 2006, 2012 and every year to 2021, date the buildings the survey found under construction, the buildings newer than it, whose footprints come from OpenStreetMap, and surveyed buildings they first show after 2006 that the census leaves without a period: the year is the first map that shows a finished building there (<span data-stat="ispraAll"></span> buildings). That is when the structure is visible from above, often a year or two before it opens. Buildings the maps cannot date stay “under construction” in the year of their survey (<span data-stat="construction"></span>).</li>
+        <li><b>Everything else</b>, offices, churches, schools and sheds, takes the date of its nearest dated neighbours and is drawn faded (<span data-stat="estimated"></span> buildings).</li>
+        <li><b>By hand.</b> Five landmarks that no source above dates rightly take their years from their history, as Wikipedia tells it: Roma Termini (1939–1950), Roma Trastevere station (1911), the Palazzo delle Esposizioni (1880–1882), the MAXXI (2010) and the Palazzo dei Conservatori (1568).</li>
+      </ul>
+      <p>Heights are the eaves the 2014 survey measured; a newer building takes its height or storeys from OpenStreetMap, or else the median height of its neighbours. Data downloaded on 14 October 2026.</p>
+    </details>
+    <p class="notice">A non-commercial project, made out of curiosity and for education.</p>
+  </article>
+  <article lang="it" data-lang-block="it" hidden>
+    <h2>Info</h2>
+    <p class="lede">Tutti i <span data-stat="surveyed"></span> edifici di Roma, e della Città del Vaticano al suo interno, come li ha rilevati la Regione nel 2014, e <span data-stat="newer"></span> finiti dopo: colorati per epoca di costruzione e inseriti nella storia che li ha plasmati.</p>
+    <div class="maker">
+      <p class="author">Fatto con 💙 da <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a></p>
+      <p class="bio">Giornalista di dati e informatico, Chief Data Officer di Code for Africa. Costruisce inchieste con dati, codice, mappe e intelligenza artificiale, pubblicate su The Guardian, Der Spiegel, El País e Internazionale.</p>
+      <div class="ctas"><a class="cta cta-coffee" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="steam" d="M7.5 6.2c-.9-1 .9-1.8 0-3"/><path class="steam" d="M10.5 6.2c-.9-1 .9-1.8 0-3"/><path d="M3.5 8h11v4a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z"/><path d="M14.5 9h1a2 2 0 0 1 0 4h-1"/></svg><span>Offrimi un caffè</span></a><a class="cta cta-in" href="https://www.linkedin.com/in/jacopo-ottaviani/" target="_blank" rel="noopener" title="Seguimi su LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg><span>LinkedIn</span></a></div>
+    </div>
+    <h3>Ispirato a</h3>
+    <p class="credit"><a href="https://github.com/alexbarakov/amsterdam-by-building" target="_blank" rel="noopener">Amsterdam, building by building</a> di Alex Barakov, di cui questa mappa adatta il codice (licenza MIT) a Roma, a sua volta ispirato a <a href="https://paris.bogachev.fr" target="_blank" rel="noopener">Paris, building by building</a> di Sasha Bogachev.</p>
+    <h3>Dati</h3>
+    <ul class="sources">
+      <li>Edifici, altezze, usi, monumenti: Regione Lazio, database geotopografico 2014. CC BY 4.0.</li>
+      <li>Epoche di costruzione: ISTAT, censimento 2011 per sezione. CC BY 4.0.</li>
+      <li>Nomi, date, architetti, foto: Wikidata (CC0), Wikipedia (CC BY-SA), Wikimedia Commons (crediti su ogni foto).</li>
+      <li>Rioni, strade e loro nomi, CAP (ciascuno al centro degli indirizzi registrati sotto di esso), aree verdi (parchi, giardini, boschi e prati, non i campi coltivati), piante degli edifici più recenti del rilievo e l’uso di <span data-stat="useOsm"></span> edifici che il rilievo registra come abitazioni ma la cui pianta su OpenStreetMap dice chiesa, albergo, scuola, ospedale, luogo di cultura o stazione: © contributori di OpenStreetMap. ODbL.</li>
+      <li>Quando sono stati finiti gli edifici in costruzione nel 2014, e quelli più recenti: ISPRA, mappe del consumo di suolo di Roma Capitale, 2006–2021.</li>
+    </ul>
+    <details>
+      <summary>Come sono datati gli edifici</summary>
+      <p>Roma non ha un registro che dati ogni edificio, come Amsterdam e Parigi. La scheda di ogni edificio dice quale fonte lo ha datato.</p>
+      <ul>
+        <li><b>Wikidata</b> data <span data-stat="wikidataAll"></span> edifici dai loro elementi: monumenti, chiese, palazzi. Un edificio ancora in costruzione nel 2014 prende la data di apertura. Un museo o un’università ospitati in un edificio più antico danno la propria fondazione, non la data dell’edificio, e non vengono usati.</li>
+        <li><b>Il censimento 2011</b> conta gli edifici residenziali di ogni sezione per epoca di costruzione. Alle abitazioni della sezione vanno quelle epoche nelle stesse proporzioni, la più recente alle case che le mappe del suolo dell’ISPRA mostrano per la prima volta dopo il 2006: l’epoca è del censimento, quale casa abbia avuto quale è una stima. Dove il rilievo disegna molte più abitazioni di quante ne conti il censimento, un quartiere costruito dopo o non ancora abitato, il censimento data al massimo una volta e mezza il proprio conteggio; le altre, aggiunte o ridisegnate dopo il 2003 e già sulla mappa ISPRA del 2006, risultano 2003–2006 e sono disegnate sbiadite (<span data-stat="surveyNew"></span> edifici) (<span data-stat="census"></span> edifici). Leggete i colori come l’età di un quartiere più che di una singola casa.</li>
+        <li><b>Prima del 1919 o senza data.</b> Negli otto rioni nati dopo il 1870 il “prima del 1919” del censimento diventa 1871–1918. Altrove resta senza data (<span data-stat="censusOld"></span> edifici), insieme a rovine, monumenti e fontane che nessuna fonte data, e compare sulla linea del tempo nel 1870.</li>
+        <li><b>Le mappe del suolo dell’ISPRA</b> per Roma, del 2006, del 2012 e di ogni anno fino al 2021, datano gli edifici che il rilievo ha trovato in costruzione, quelli più recenti, con le piante di OpenStreetMap, e gli edifici rilevati che mostrano per la prima volta dopo il 2006 e a cui il censimento non lascia un’epoca: l’anno è la prima mappa che vi mostra un edificio finito (<span data-stat="ispraAll"></span> edifici). È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura. Gli edifici che le mappe non riescono a datare restano “in costruzione” nell’anno del loro rilievo (<span data-stat="construction"></span>).</li>
+        <li><b>Tutto il resto</b>, uffici, chiese, scuole e magazzini, prende la data degli edifici datati più vicini ed è disegnato sbiadito (<span data-stat="estimated"></span> edifici).</li>
+        <li><b>A mano.</b> Cinque edifici simbolo che nessuna delle fonti qui sopra data correttamente prendono gli anni dalla loro storia, come la racconta Wikipedia: la stazione Termini (1939–1950), la stazione di Trastevere (1911), il Palazzo delle Esposizioni (1880–1882), il MAXXI (2010) e il Palazzo dei Conservatori (1568).</li>
+      </ul>
+      <p>Le altezze sono le gronde misurate dal rilievo del 2014; un edificio più recente prende altezza o piani da OpenStreetMap, altrimenti l’altezza mediana dei vicini. Dati scaricati il 14 ottobre 2026.</p>
+    </details>
+    <p class="notice">Un progetto senza fini commerciali, nato per curiosità e per scopi didattici.</p>
+  </article>
+</dialog>
+
+<div class="tally" aria-live="polite">
+  <span id="year" class="tally-year">&nbsp;</span>
+  <span class="tally-count"><span id="count">0</span> buildings</span>
+</div>
+
+<button class="compass" aria-label="North up" title="North up">
+  <svg viewBox="-32 -32 64 64" aria-hidden="true">
+    <circle class="face" r="30"/>
+    <circle class="ring" r="21.5"/>
+    <line class="tick major" x1="0.00" y1="-29.20" x2="0.00" y2="-25.50"/><line class="tick" x1="7.56" y1="-28.21" x2="7.14" y2="-26.66"/><line class="tick" x1="14.60" y1="-25.29" x2="13.80" y2="-23.90"/><line class="tick major" x1="20.65" y1="-20.65" x2="18.74" y2="-18.74"/><line class="tick" x1="25.29" y1="-14.60" x2="23.90" y2="-13.80"/><line class="tick" x1="28.21" y1="-7.56" x2="26.66" y2="-7.14"/><line class="tick major" x1="29.20" y1="-0.00" x2="25.50" y2="-0.00"/><line class="tick" x1="28.21" y1="7.56" x2="26.66" y2="7.14"/><line class="tick" x1="25.29" y1="14.60" x2="23.90" y2="13.80"/><line class="tick major" x1="20.65" y1="20.65" x2="18.74" y2="18.74"/><line class="tick" x1="14.60" y1="25.29" x2="13.80" y2="23.90"/><line class="tick" x1="7.56" y1="28.21" x2="7.14" y2="26.66"/><line class="tick major" x1="0.00" y1="29.20" x2="0.00" y2="25.50"/><line class="tick" x1="-7.56" y1="28.21" x2="-7.14" y2="26.66"/><line class="tick" x1="-14.60" y1="25.29" x2="-13.80" y2="23.90"/><line class="tick major" x1="-20.65" y1="20.65" x2="-18.74" y2="18.74"/><line class="tick" x1="-25.29" y1="14.60" x2="-23.90" y2="13.80"/><line class="tick" x1="-28.21" y1="7.56" x2="-26.66" y2="7.14"/><line class="tick major" x1="-29.20" y1="0.00" x2="-25.50" y2="0.00"/><line class="tick" x1="-28.21" y1="-7.56" x2="-26.66" y2="-7.14"/><line class="tick" x1="-25.29" y1="-14.60" x2="-23.90" y2="-13.80"/><line class="tick major" x1="-20.65" y1="-20.65" x2="-18.74" y2="-18.74"/><line class="tick" x1="-14.60" y1="-25.29" x2="-13.80" y2="-23.90"/><line class="tick" x1="-7.56" y1="-28.21" x2="-7.14" y2="-26.66"/>
+    <text class="n" x="0" y="-15.2">N</text><text x="15.6" y="0.2">E</text><text x="0" y="15.6">S</text><text x="-15.6" y="0.2">W</text>
+    <path class="needle-n" d="M0 -12.5 L3.4 0 L-3.4 0 Z"/><path class="needle-s" d="M0 12.5 L3.4 0 L-3.4 0 Z"/>
+    <circle class="hub" r="1.6"/>
+  </svg>
+</button>
+<button class="terrain-toggle" aria-pressed="false" aria-label="Show the hills" title="Show the hills">
+  <svg viewBox="0 0 20 14" aria-hidden="true"><path d="M1 13 7 4.5l3.2 4.3L13 5l6 8z"/><path d="M5.6 6.6 7 4.5l1.5 2" class="snow"/></svg>
+  <span>Hills</span>
+</button>
+<button class="green-toggle" aria-pressed="false" aria-label="Show the green areas" title="Show the green areas">
+  <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 15V8.6"/><path d="M8 11.2 5.9 9.4"/><path d="M5.2 12A3.7 3.7 0 0 1 3.9 5.2a4.2 4.2 0 0 1 8.2 0A3.7 3.7 0 0 1 10.8 12z"/></svg>
+  <span>Green</span>
+</button>
+
+<aside id="panel" class="panel">
+  <button class="sheet-handle" aria-expanded="true" aria-controls="panel-body">Show legend</button>
+  <div id="panel-body"></div>
+</aside>
+
+<div id="card" class="card" hidden></div>
+<p class="howto">Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.</p>
+
+<footer class="timeline">
+  <div class="hist-card">
+    <button id="play" class="play" aria-label="Play the city's growth" aria-pressed="false">
+      <svg viewBox="0 0 16 16" aria-hidden="true"><path id="play-icon" d="M4 2.5v11l9-5.5z"/></svg>
+    </button>
+    <canvas id="hist" aria-label="Buildings per year; drag to set the year"></canvas>
+  </div>
+  <div class="masthead-note">
+    <p class="dek">All roads lead to Rome.</p>
+    <p class="byline-top"><span class="by">Made with 💙 by</span> <a href="https://jacopoottaviani.com" target="_blank" rel="noopener">Jacopo Ottaviani</a></p>
+    <p class="ctas"><a class="cta cta-coffee" href="https://ko-fi.com/jacopoottaviani" target="_blank" rel="noopener"><svg viewBox="0 0 20 20" aria-hidden="true"><path class="steam" d="M7.5 6.2c-.9-1 .9-1.8 0-3"/><path class="steam" d="M10.5 6.2c-.9-1 .9-1.8 0-3"/><path d="M3.5 8h11v4a4 4 0 0 1-4 4h-3a4 4 0 0 1-4-4z"/><path d="M14.5 9h1a2 2 0 0 1 0 4h-1"/></svg><span>Buy me a coffee</span></a><a class="cta cta-in" href="https://www.linkedin.com/in/jacopo-ottaviani/" target="_blank" rel="noopener" title="Follow me on LinkedIn"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20.45 20.45h-3.56v-5.57c0-1.33-.02-3.04-1.85-3.04-1.85 0-2.14 1.45-2.14 2.94v5.67H9.34V9h3.41v1.56h.05c.48-.9 1.64-1.85 3.37-1.85 3.6 0 4.27 2.37 4.27 5.46v6.28zM5.34 7.43a2.06 2.06 0 1 1 0-4.13 2.06 2.06 0 0 1 0 4.13zM7.12 20.45H3.56V9h3.56v11.45zM22.22 0H1.77C.79 0 0 .77 0 1.73v20.54C0 23.23.79 24 1.77 24h20.45c.98 0 1.78-.77 1.78-1.73V1.73C24 .77 23.2 0 22.22 0z"/></svg><span>LinkedIn</span></a></p>
+  </div>
+</footer>
+
+<div id="loading" class="loading">
+  <p class="motto">All roads lead to Rome.</p>
+  <p class="building"><span class="building-text">Building the city</span> <span id="progress">0</span>%</p>
+</div>
+<script type="module" src="app.js"></script>
+</body>
+</html>

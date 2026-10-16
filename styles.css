@@ -1,0 +1,449 @@
+/* Rome: a white architectural model under a pale Roman sky, or a dark one at night. One loud colour, red. */
+:root {
+  --sky: #e4e8ea;
+  --sky-clear: rgba(228, 232, 234, 0);
+  --sky-veil: rgba(228, 232, 234, .85);
+  --backdrop: rgba(228, 232, 234, .7);
+  --paper: #ffffff;
+  --glass: rgba(255, 255, 255, .92);
+  --ink: #000000;
+  --muted: #5d6266;
+  --rule: #cfd5d8;
+  --red: #ec0000;
+  --shadow: rgba(30, 40, 50, .16);
+  --rim: #c3cacd;
+  --gutter: clamp(16px, 2.4vw, 32px);
+  color-scheme: light;
+  font: 400 14px/1.5 "Schibsted Grotesk", "Helvetica Neue", Arial, sans-serif;
+}
+/* Dark: follows the system unless the reader picks a theme with the toggle (data-theme on <html>). */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sky: #121417; --sky-clear: rgba(18, 20, 23, 0); --sky-veil: rgba(18, 20, 23, .85); --backdrop: rgba(8, 9, 11, .72);
+    --paper: #1d2024; --glass: rgba(29, 32, 36, .92); --ink: #f2f2ef; --muted: #9aa1a6; --rule: #33383d;
+    --red: #ff4b3e; --shadow: rgba(0, 0, 0, .5); --rim: #6a7177; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --sky: #121417; --sky-clear: rgba(18, 20, 23, 0); --sky-veil: rgba(18, 20, 23, .85); --backdrop: rgba(8, 9, 11, .72);
+  --paper: #1d2024; --glass: rgba(29, 32, 36, .92); --ink: #f2f2ef; --muted: #9aa1a6; --rule: #33383d;
+  --red: #ff4b3e; --shadow: rgba(0, 0, 0, .5); --rim: #6a7177; color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--sky); color: var(--ink); overflow: hidden; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+
+#scene { position: fixed; inset: 0; width: 100%; height: 100%; display: block; }
+/* No veils over the model: the bars and cards carry their own paper, and so do the two big words. */
+h1, .tally-year { width: fit-content; background: var(--paper); border-radius: 10px; box-shadow: 0 1px 0 var(--rule); }
+
+/* Masthead: the three crosses, then the name set large and tight. */
+.masthead { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); left: var(--gutter);
+  display: flex; gap: 14px; align-items: flex-start; pointer-events: none; }
+h1 { position: relative; }
+.sibling { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 124px);
+  color: var(--muted); font-size: 12px; text-decoration: underline; text-decoration-color: var(--red); text-underline-offset: 3px; }
+h1 { margin: 0; padding: 5px 12px 6px; font-size: clamp(34px, 4.4vw, 56px); font-weight: 800; letter-spacing: -0.035em; line-height: .9; }
+/* The dek and the credit: one strip of paper under the timeline. */
+.masthead-note { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 16px; padding: 7px 14px; background: var(--paper);
+  border-radius: 10px; box-shadow: 0 1px 0 var(--rule), 0 6px 18px var(--shadow); }
+.dek { margin: 0; color: var(--ink); font-size: 14px; line-height: 1.4; }
+/* One row: the dek gives way (wraps) before the credit and the buttons do. */
+.masthead-note .dek { flex: 1 1 240px; min-width: 0; }
+.masthead-note .byline-top, .masthead-note .ctas { flex: none; }
+
+/* Mode switch: a single bar, the active mode filled black. */
+.modes { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); left: 50%; transform: translateX(-50%);
+  display: flex; background: var(--paper); border-radius: 999px; padding: 3px; box-shadow: 0 1px 0 var(--rule); }
+.modes button { border: 0; background: none; padding: 7px 16px; border-radius: 999px; cursor: pointer; font-weight: 500; }
+.modes button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+
+.tally { position: fixed; top: calc(env(safe-area-inset-top, 0px) + var(--gutter)); right: var(--gutter); text-align: right; }
+.tally-year { display: block; margin-left: auto; padding: 5px 10px 6px; font-size: clamp(40px, 5vw, 64px); font-weight: 800; letter-spacing: -0.04em; line-height: .85; }
+/* The count sits on a slip of paper, like the dek, so it reads over the city. */
+.tally-count { display: inline-block; margin-top: 6px; padding: 2px 9px; border-radius: 6px; background: var(--paper);
+  box-shadow: 0 1px 0 var(--rule); color: var(--ink); }
+
+/* Context panel: legend or layer list, always on the left under the masthead. */
+.panel { position: fixed; left: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 118px);
+  width: min(340px, calc(100vw - 2 * var(--gutter))); max-height: calc(100vh - 352px); overflow-y: auto;
+  background: var(--paper); border-radius: 10px; padding: 14px 16px; }
+.panel h2 { margin: 0 0 8px; font-size: 13px; font-weight: 700; }
+.panel h2.section { margin: 14px 0 4px; color: var(--muted); font-weight: 600; }
+.panel h2.section:first-child { margin-top: 0; }
+.panel h2.section { display: flex; align-items: center; gap: 7px; scroll-margin-top: 6px; }
+.icon { width: 16px; height: 16px; flex: none; }
+.layer-title .icon { width: 20px; height: 20px; margin-right: 8px; vertical-align: -3px; }
+.jump { display: flex; gap: 4px; margin: 0 0 10px; position: sticky; top: -14px; background: var(--paper); padding: 6px 0; z-index: 1; }
+.jump button { width: 34px; height: 34px; border: 1px solid var(--rule); border-radius: 8px; background: var(--paper);
+  display: grid; place-items: center; cursor: pointer; color: var(--ink); }
+.jump button:hover { background: var(--sky); }
+.jump .icon { width: 18px; height: 18px; }
+/* Language: two letters under the year. */
+.lang { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 103px); display: flex;
+  background: var(--paper); border-radius: 999px; padding: 2px; }
+.lang button { border: 0; background: none; padding: 3px 9px; border-radius: 999px; cursor: pointer; font-size: 12px; font-weight: 600; color: var(--muted); }
+.lang button[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.swatches { display: flex; flex-direction: column; }
+.swatch { display: grid; grid-template-columns: 12px 1fr auto; gap: 10px; align-items: center; background: none; border: 0;
+  text-align: left; padding: 4px 0; cursor: pointer; }
+.swatch i { width: 12px; height: 12px; border-radius: 2px; }
+.swatch .n { color: var(--muted); font-size: 12px; }
+.sheet-handle { display: none; }
+/* On a computer the handle is a small arrow in the panel's corner, kept there when the panel scrolls and above the layer
+   jump bar; folded, the panel is one line that opens it again. */
+@media (min-width: 721px) {
+  .sheet-handle { position: sticky; top: -6px; float: right; z-index: 2; margin: -6px -8px -26px 0; display: grid; place-items: center;
+    width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer; font-size: 0; }
+  .sheet-handle::after { content: ""; width: 7px; height: 7px; margin-top: 4px; border: solid currentColor; border-width: 0 2px 2px 0;
+    transform: rotate(225deg); }
+  .sheet-handle:hover { background: var(--sky); color: var(--ink); }
+  .panel.collapsed { width: auto; padding: 0; overflow: hidden; }
+  .panel.collapsed .sheet-handle { position: static; float: none; margin: 0; display: flex; gap: 10px; width: auto; height: auto; padding: 9px 14px;
+    border-radius: 10px; font-size: 13px; font-weight: 700; color: var(--ink); }
+  .panel.collapsed .sheet-handle::after { margin-top: -4px; transform: rotate(45deg); }
+  .panel.collapsed #panel-body { display: none; }
+}
+.energy-scale div { display: grid; grid-template-columns: 28px 1fr auto; gap: 10px; align-items: center; padding: 2px 0; }
+.energy-scale i { height: 14px; border-radius: 2px; }
+.energy-scale .n { color: var(--muted); font-size: 12px; }
+.src { font-size: 12px; color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; }
+.layer-intro { margin: 6px 0 10px; line-height: 1.5; }
+.filter { width: 100%; font: inherit; padding: 7px 10px; border: 1px solid var(--rule); border-radius: 6px; margin-bottom: 6px; background: var(--paper); }
+.people .addr { color: var(--ink); opacity: .55; }
+.n, .tally, .card dd, .card .y { font-variant-numeric: tabular-nums; }
+.swatch[aria-pressed="false"] { opacity: .35; }
+.note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
+
+.layers { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }
+.layer { display: grid; grid-template-columns: 1fr auto; gap: 2px 12px; background: none; border: 0; text-align: left;
+  padding: 8px; border-radius: 6px; cursor: pointer; }
+.layer:hover { background: var(--sky); }
+.layer[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.layer b { font-weight: 700; }
+.layer .era, .layer .n { font-size: 12px; opacity: .7; }
+.layer .n { grid-row: 1 / 3; grid-column: 2; align-self: center; }
+.layer-detail { margin-top: 10px; }
+.stories { list-style: none; margin: 0 -8px; padding: 0; }
+.story { display: block; width: 100%; text-align: left; background: none; border: 0; border-radius: 6px; padding: 7px 8px; cursor: pointer; }
+.story:hover { background: var(--sky); }
+.story b { display: block; font-weight: 600; }
+.story span { display: block; color: var(--muted); font-size: 12px; line-height: 1.45; margin-top: 2px; }
+.back { border: 0; background: none; padding: 0; margin: 0 0 10px; color: var(--muted); cursor: pointer; font-size: 13px; }
+.back::before { content: "‹ "; }
+.layer-title { font-size: 22px !important; font-weight: 800 !important; letter-spacing: -0.02em; margin: 0 !important; line-height: 1.1; }
+.layer-era { margin: 2px 0 0; color: var(--muted); }
+.layer-detail p { margin: 0 0 10px; line-height: 1.55; }
+.layer-detail a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; font-size: 12px; }
+.caveat { color: var(--muted); font-size: 12px; }
+
+/* Building card: a white slip of paper. Follows the pointer on hover; pinned by a click, then it takes clicks.
+   Hierarchy: name and year are the heading; small sentence-case headings mark the sections below. */
+.card { position: fixed; z-index: 10; pointer-events: none; background: var(--paper); border-radius: 10px;
+  width: 330px; max-height: calc(100vh - 24px); overflow-y: auto; box-shadow: 0 8px 28px var(--shadow); font-size: 13px; }
+.card.pinned { pointer-events: auto; width: 400px; }
+.card-close { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border: 0; border-radius: 50%;
+  background: var(--glass); color: var(--ink); cursor: pointer; font-size: 18px; line-height: 1; z-index: 1; }
+.card .photo { margin: 0; }
+.card .photo img { display: block; width: 100%; max-height: 210px; object-fit: cover; border-radius: 10px 10px 0 0; background: var(--sky); }
+.card .photo figcaption { font-size: 11px; color: var(--muted); padding: 5px 16px 0; }
+/* Photos through the years: today's first, then the archive; the year sits on the picture, tabs below jump. */
+.card .photo .frame { position: relative; }
+.card .photo .year { position: absolute; left: 10px; bottom: 8px; background: var(--ink); color: var(--paper);
+  font-size: 12px; font-weight: 700; padding: 2px 7px; border-radius: 4px; font-variant-numeric: tabular-nums; }
+.card .photo .prev, .card .photo .next { position: absolute; top: 50%; transform: translateY(-50%); width: 30px; height: 30px;
+  border: 0; border-radius: 50%; background: var(--glass); cursor: pointer; font-size: 20px; line-height: 1; }
+.card .photo .prev { left: 8px; } .card .photo .next { right: 8px; }
+.card .photo .years { display: flex; flex-wrap: wrap; gap: 4px; padding: 6px 16px 0; }
+.card .photo .years button { border: 1px solid #d6d9dc; background: none; border-radius: 4px; padding: 2px 7px; font: inherit;
+  font-size: 12px; cursor: pointer; font-variant-numeric: tabular-nums; }
+.card .photo .years button[aria-current] { background: var(--ink); border-color: var(--ink); color: var(--paper); }
+.card .photo button:focus-visible { outline: 2px solid var(--red); outline-offset: 2px; }
+.card a { color: inherit; text-decoration-color: var(--red); text-underline-offset: 3px; }
+.card-head { padding: 12px 16px 10px; }
+.card-head h3 { margin: 0 0 6px; font-size: 17px; font-weight: 700; line-height: 1.25; letter-spacing: -0.01em; padding-right: 26px; }
+.card .when { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.card .y { font-size: 30px; font-weight: 800; letter-spacing: -0.03em; line-height: 1; }
+.card .period { color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+.card .period i, .card .chips i { width: 9px; height: 9px; border-radius: 2px; flex: none; }
+.card section { padding: 10px 16px; border-top: 1px solid var(--rule); }
+.card h4 { margin: 0 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.card .extract { margin: 0; line-height: 1.55; }
+.card .fact { background: #fff6e8; border-top-color: #f0dcc0; }
+.card .fact p { margin: 0; line-height: 1.5; }
+.card .chips { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.card .chips li { display: flex; gap: 8px; align-items: flex-start; }
+.card .chips li i { margin-top: 5px; }
+.card .chips b { font-weight: 600; }
+.card .chips span { color: var(--muted); }
+.card .chips p { margin: 3px 0 0; line-height: 1.5; }
+.card dl { display: grid; grid-template-columns: auto 1fr; gap: 3px 12px; margin: 0; }
+.card dt { color: var(--muted); }
+.card dd { margin: 0; text-align: right; }
+.card .why { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.45; }
+.card .sources p { margin: 0; }
+.card .photo.inline { margin: 0 -16px -10px; }
+.card .photo.inline img { border-radius: 0; }
+.card .hint { margin: 0; padding: 8px 16px 12px; color: var(--muted); font-size: 12px; border-top: 1px solid var(--rule); }
+
+/* How to move: a quiet line under the timeline's right end. */
+.howto { position: fixed; right: var(--gutter); bottom: calc(env(safe-area-inset-bottom, 0px) + 190px); color: var(--muted); background: var(--sky-veil); padding: 2px 8px; border-radius: 4px;
+  font-size: 12px; pointer-events: none; }
+@media (max-width: 720px), (hover: none) { .howto { display: none; } }
+
+.timeline { position: fixed; left: 0; right: 0; bottom: 0; display: flex; flex-direction: column; align-items: stretch; gap: 8px;
+  padding: 0 var(--gutter) calc(env(safe-area-inset-bottom, 0px) + 14px); pointer-events: none; }
+.timeline > * { pointer-events: auto; }
+/* The play button and the histogram on one slip of paper, like the other cards, so they read over the city. */
+.hist-card { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; background: var(--paper); border-radius: 12px;
+  padding: 8px 12px 2px 14px; box-shadow: 0 1px 0 var(--rule), 0 6px 18px var(--shadow); }
+.timeline canvas { display: block; flex: 1; min-width: 0; height: 96px; cursor: ew-resize; touch-action: none; }
+.play { position: relative; width: 53px; height: 53px; border-radius: 50%; border: 0; background: var(--ink); color: var(--paper);
+  cursor: pointer; display: grid; place-items: center; flex: none; box-shadow: 0 6px 18px var(--shadow);
+  transition: transform .2s ease; animation: play-call 2.2s ease-out .8s 4; }
+.play svg { position: relative; width: 20px; height: 20px; fill: currentColor; margin-left: 2px; }
+.play[aria-pressed="true"] svg { margin-left: 0; }
+/* A ring in the colours of the periods, the timeline's own palette: it turns while the film plays. */
+.play::before { content: ""; position: absolute; inset: -4px; border-radius: 50%;
+  background: conic-gradient(from 210deg, #3b0d0a, #9c2416, #d97a2b, #e5b13a, #8e9f3c, #3f8f6b, #2b8a8f, #2c6391, #3a4f9a, #6a3f8f, #3b0d0a);
+  /* cut to a ring 4 px wide, just outside the button, whatever the stacking order */
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px));
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3.5px)); }
+.play[aria-pressed="true"]::before { animation: play-ring 3s linear infinite; }
+.play:hover { transform: scale(1.07); }
+.play:active { transform: scale(.97); }
+/* A few soft calls after the page opens, so the film is found; then it rests. */
+@keyframes play-call { 0% { box-shadow: 0 6px 18px var(--shadow), 0 0 0 0 rgba(236, 0, 0, .45); }
+  70%, 100% { box-shadow: 0 6px 18px var(--shadow), 0 0 0 18px rgba(236, 0, 0, 0); } }
+@keyframes play-ring { to { transform: rotate(1turn); } }
+@media (prefers-reduced-motion: reduce) { .play, .play::before, .play[aria-pressed="true"]::before { animation: none; } }
+
+.loading { position: fixed; left: 50%; top: 50%; transform: translate(-50%, -50%); color: var(--muted); text-align: center; }
+.loading p { margin: 0; }
+.loading .motto { color: var(--ink); font-size: clamp(22px, 3vw, 34px); font-weight: 800; letter-spacing: -0.03em; line-height: 1.1; margin-bottom: 10px; }
+.loading .building { font-variant-numeric: tabular-nums; }
+
+@media (max-width: 720px) {
+  .dek, .masthead-note { display: none; }
+  h1 { font-size: 30px; padding: 3px 8px 4px; border-radius: 8px; }
+  .tally-year { font-size: 30px; padding: 3px 8px 4px; border-radius: 8px; }
+  .tally-count { font-size: 12px; margin-top: 3px; padding: 1px 7px; }
+  .masthead, .tally { top: calc(env(safe-area-inset-top, 0px) + 14px); }
+  .lang { top: calc(env(safe-area-inset-top, 0px) + 73px); }
+  .sibling { top: calc(env(safe-area-inset-top, 0px) + 98px); }
+  /* Modes: one scrolling strip above the timeline. */
+  .modes { top: auto; left: 12px; right: 12px; transform: none; bottom: calc(env(safe-area-inset-bottom, 0px) + 100px);
+    overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
+  .modes::-webkit-scrollbar { display: none; }
+  .modes button { flex: 1 0 auto; padding: 8px 11px; }
+  /* Panel: a sheet above the modes, folded to its handle by default. */
+  .panel { top: auto; left: 12px; right: 12px; width: auto; bottom: calc(env(safe-area-inset-bottom, 0px) + 156px);
+    max-height: 48vh; padding: 0 14px 12px; }
+  .sheet-handle { display: block; width: calc(100% + 28px); margin: 0 -14px 8px; padding: 12px 14px; border: 0;
+    background: none; text-align: left; font-weight: 600; cursor: pointer; border-bottom: 1px solid var(--rule); }
+  .sheet-handle::after { content: ""; float: right; width: 8px; height: 8px; margin-top: 4px; border: solid var(--muted);
+    border-width: 0 2px 2px 0; transform: rotate(225deg); }
+  .panel.collapsed { overflow: hidden; padding-bottom: 0; }
+  .panel.collapsed .sheet-handle { margin-bottom: 0; border-bottom: 0; }
+  .panel.collapsed .sheet-handle::after { transform: rotate(45deg); margin-top: 0; }
+  .panel.collapsed #panel-body { display: none; }
+  /* Card: a sheet from the bottom edge. */
+  .card, .card.pinned { left: 0 !important; right: 0; top: auto !important; bottom: 0; width: auto; max-height: 72vh;
+    border-radius: 14px 14px 0 0; padding-bottom: env(safe-area-inset-bottom, 0px); }
+  .card .photo img { border-radius: 14px 14px 0 0; max-height: 190px; }
+  .timeline { padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 10px); }
+  .timeline canvas { height: 76px; }
+  .play { width: 48px; height: 48px; }
+  .hist-card { gap: 10px; padding: 6px 8px 1px 10px; }
+  .play svg { width: 18px; height: 18px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+/* About: a reading page over the map. */
+.lang .about-open { color: var(--ink); }
+.about { border: 0; border-radius: 12px; padding: 0; width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px);
+  box-shadow: 0 20px 60px var(--shadow); background: var(--paper); color: var(--ink); overflow-y: auto; }
+.about::backdrop { background: var(--backdrop); }
+/* The dialog scrolls, not the article: an article that scrolls would shrink beside the floating close button. */
+.about article { padding: 28px 32px 32px; }
+.about h2 { margin: 0 0 12px; font-size: 26px; font-weight: 800; letter-spacing: -0.02em; }
+.about h3 { margin: 22px 0 6px; font-size: 15px; font-weight: 700; }
+.about p, .about li { line-height: 1.6; max-width: 64ch; }
+.about ul { padding-left: 18px; margin: 6px 0 0; }
+.about li { margin-bottom: 6px; }
+.about a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; }
+.about .credit { color: var(--muted); }
+.about .author { font-weight: 600; margin-bottom: 4px; }
+.about .author + .credit { margin-top: 0; }
+.about .notice { border-left: 3px solid var(--red); padding-left: 12px; font-weight: 500; }
+.about-close { position: sticky; float: right; top: 10px; margin: 10px 10px 0 0; width: 32px; height: 32px; border: 0;
+  border-radius: 50%; background: var(--sky); cursor: pointer; font-size: 18px; }
+@media (max-width: 720px) { .about article { padding: 20px 18px 24px; } }
+.contribute { margin: 14px 0 0; padding-top: 10px; border-top: 1px solid var(--rule); font-size: 12px; }
+.contribute a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; }
+.card .photo button[disabled] { opacity: .35; cursor: default; }
+.card .photo .gone { position: absolute; inset: 0; margin: 0; display: grid; place-content: center; text-align: center; gap: 4px;
+  padding: 0 40px; background: var(--sky); font-size: 12px; border-radius: 10px 10px 0 0; }
+.card .photo.failed img { visibility: hidden; height: 190px; }
+
+
+/* Credit under the dek: the maker, then a coffee and LinkedIn. */
+.byline-top { margin: 0; padding-left: 16px; border-left: 1px solid var(--rule); font-size: 12px; color: var(--muted); }
+.byline-top a { color: var(--ink); text-decoration-color: var(--red); text-underline-offset: 3px; white-space: nowrap; }
+.masthead-note .ctas { margin: 0; }
+@media (max-width: 720px) { .byline-top, .masthead-note .ctas { display: none; } }
+
+/* The two buttons, here and in About: a cup that steams and tips on hover, and LinkedIn's blue with a glint now and then. */
+.ctas { display: flex; flex-wrap: wrap; gap: 6px; }
+.cta { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+  padding: 5px 11px 5px 8px; border-radius: 999px; font-size: 12px; font-weight: 600; line-height: 1.2; text-decoration: none;
+  transition: transform .18s ease, box-shadow .18s ease, background-color .18s ease, color .18s ease; }
+.cta svg { width: 16px; height: 16px; flex: none; overflow: visible; transition: transform .25s ease; }
+.cta:hover { transform: translateY(-1px); box-shadow: 0 4px 12px var(--shadow); }
+.cta:active { transform: translateY(0); box-shadow: none; }
+.cta-coffee { background: var(--ink); color: var(--paper); }
+.cta-coffee:hover { background: var(--red); color: #fff; }
+.cta-coffee svg { fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.cta-coffee:hover svg { transform: rotate(-14deg); }
+.cta-coffee .steam { opacity: 0; animation: cta-steam 2.6s ease-in-out infinite; }
+.cta-coffee .steam + .steam { animation-delay: 1.3s; }
+@keyframes cta-steam { 0% { opacity: 0; transform: translateY(2px); } 35% { opacity: .95; } 100% { opacity: 0; transform: translateY(-4px); } }
+.cta-in { background: #0a66c2; color: #fff; }
+.cta-in:hover { background: #004182; }
+.cta-in svg { fill: currentColor; }
+.cta-in:hover svg { transform: scale(1.12); }
+.cta-in::after { content: ""; position: absolute; inset: 0; pointer-events: none; transform: translateX(-120%);
+  background: linear-gradient(105deg, transparent 35%, rgba(255, 255, 255, .5) 50%, transparent 65%);
+  animation: cta-glint 7s ease-in-out 1.5s infinite; }
+.cta-in:hover::after { animation: cta-glint-now .7s ease-out; }
+@keyframes cta-glint { 0%, 86% { transform: translateX(-120%); } 100% { transform: translateX(120%); } }
+@keyframes cta-glint-now { from { transform: translateX(-120%); } to { transform: translateX(120%); } }
+@media (prefers-reduced-motion: reduce) {
+  .cta, .cta svg { transition: none; }
+  .cta-coffee .steam { animation: none; opacity: .8; }
+  .cta-in::after { display: none; }
+}
+
+/* Theme toggle: a moon by day, a sun by night, in the pill with About and the languages. */
+.theme-toggle { display: grid; place-items: center; width: 26px; padding: 3px 0 !important; color: var(--ink) !important; }
+.theme-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.theme-toggle .sun { display: none; }
+:root[data-theme="dark"] .theme-toggle .sun { display: block; }
+:root[data-theme="dark"] .theme-toggle .moon { display: none; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .sun { display: block; }
+  :root:not([data-theme="light"]) .theme-toggle .moon { display: none; }
+}
+
+/* About: short, with the maker first; the method folds away. */
+.about .lede { font-size: 15px; margin: 0 0 18px; }
+.about .maker { display: grid; grid-template-columns: 1fr auto; gap: 4px 18px; align-items: center; padding: 16px 0;
+  border-top: 1px solid var(--rule); border-bottom: 1px solid var(--rule); }
+.about .maker .author { margin: 0; }
+.about .maker .bio { margin: 0; grid-column: 1; color: var(--muted); font-size: 13px; line-height: 1.55; }
+.about .maker .ctas { grid-column: 2; grid-row: 1 / span 2; flex-direction: column; gap: 8px; }
+.about .cta { justify-content: center; gap: 8px; padding: 9px 14px; font-size: 13px; text-decoration: none; }
+.about .cta svg { width: 17px; height: 17px; }
+.about .cta-coffee { color: var(--paper); }
+.about .cta-coffee:hover, .about .cta-in { color: #fff; }
+.about .sources { font-size: 13px; }
+.about .sources li { margin-bottom: 3px; }
+.about details { margin-top: 18px; border-top: 1px solid var(--rule); padding-top: 12px; }
+.about summary { cursor: pointer; font-weight: 700; font-size: 15px; }
+.about details[open] summary { margin-bottom: 8px; }
+.about details p, .about details li { font-size: 13px; }
+@media (max-width: 720px) {
+  .about .maker { grid-template-columns: 1fr; }
+  .about .maker .ctas { grid-column: 1; grid-row: auto; flex-direction: row; margin-top: 8px; }
+}
+
+/* Compass: a compass card lying on the ground under the camera. It turns as the map turns and tilts as the
+   camera tilts; a click turns the map back to north up. */
+.compass { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 143px);
+  width: 58px; height: 58px; padding: 0; border: 0; background: none; cursor: pointer; perspective: 170px; }
+.compass svg { width: 100%; height: 100%; display: block; overflow: visible; transform-origin: 50% 50%;
+  filter: drop-shadow(0 1px 3px var(--shadow)); }
+.compass .face { fill: var(--paper); stroke: var(--rim); stroke-width: 1.2; }
+.compass .ring { fill: none; stroke: var(--rim); stroke-width: .6; opacity: .7; }
+.compass .tick { stroke: var(--muted); stroke-width: .6; stroke-linecap: round; opacity: .55; }
+.compass .tick.major { stroke-width: 1.1; opacity: .9; }
+.compass text { font: 700 7.4px "Schibsted Grotesk", sans-serif; fill: var(--muted); text-anchor: middle; dominant-baseline: middle; }
+.compass text.n { fill: var(--red); font-size: 8.6px; font-weight: 800; }
+.compass .needle-n { fill: var(--red); }
+.compass .needle-s { fill: var(--ink); opacity: .78; }
+.compass .hub { fill: var(--paper); stroke: var(--ink); stroke-width: .7; }
+.compass:hover .face { stroke: var(--ink); }
+.compass:focus-visible { outline: 2px solid var(--red); outline-offset: 3px; border-radius: 50%; }
+@media (max-width: 720px) {
+  .compass { top: calc(env(safe-area-inset-top, 0px) + 111px); right: 14px; width: 48px; height: 48px; }
+}
+
+/* Spin: a turning arrow; while the city turns, a stop square. */
+.spin-toggle { display: grid; place-items: center; width: 26px; padding: 3px 0 !important; color: var(--ink) !important; }
+.spin-toggle svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.spin-toggle .spin-off { display: none; fill: currentColor; stroke: none; }
+.spin-toggle[aria-pressed="true"] .spin-on { display: none; }
+.spin-toggle[aria-pressed="true"] .spin-off { display: block; }
+.spin-toggle[aria-pressed="true"] { background: var(--ink) !important; color: var(--paper) !important; }
+
+/* Hills: a pill under the compass, filled while the city stands on its relief. */
+.terrain-toggle { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 209px);
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 9px; border: 0; border-radius: 999px;
+  background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 0 var(--rule); }
+.terrain-toggle svg { width: 18px; height: 13px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.terrain-toggle .snow { stroke-width: 1.2; }
+.terrain-toggle:hover { box-shadow: 0 0 0 1.5px var(--ink); }
+.terrain-toggle[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.terrain-toggle.loading { opacity: .55; cursor: progress; }
+@media (max-width: 720px) {
+  .terrain-toggle { top: calc(env(safe-area-inset-top, 0px) + 165px); right: 14px; padding: 4px 9px 4px 7px; }
+}
+
+/* The search: a pill under "Roma". Five digits fly the camera to a postcode, words to a street; a pin marks the place.
+   16px text, so a phone does not zoom the page when the field takes focus. Above the panel, so the suggestions cover it. */
+.masthead { z-index: 5; }
+.search { position: relative; pointer-events: auto; display: flex; align-items: center; gap: 7px; width: 220px; height: 34px;
+  margin-top: 8px; padding: 0 12px 0 11px; background: var(--paper); border-radius: 999px; box-shadow: 0 1px 0 var(--rule); }
+.search:focus-within { box-shadow: 0 0 0 1.5px var(--ink); }
+.search svg { width: 15px; height: 15px; flex: none; fill: none; stroke: var(--muted); stroke-width: 1.7; stroke-linecap: round; }
+.search input { flex: 1; min-width: 0; padding: 0; border: 0; background: none; color: var(--ink); outline: none;
+  font: inherit; font-size: 16px; font-weight: 700; letter-spacing: .01em; font-variant-numeric: tabular-nums; text-overflow: ellipsis; }
+.search input::placeholder { color: var(--muted); font-weight: 500; letter-spacing: 0; }
+.search input:focus-visible { outline: none; }
+/* Suggestions: a sheet of paper under the pill, the name on the left and its postcode on the right. */
+.search-list { position: absolute; left: 0; top: calc(100% + 6px); width: 320px; max-width: calc(100vw - 2 * var(--gutter));
+  margin: 0; padding: 5px; list-style: none; background: var(--paper); border-radius: 10px;
+  box-shadow: 0 1px 0 var(--rule), 0 8px 24px var(--shadow); }
+.search-list[hidden] { display: none; }
+.search-list li { display: flex; align-items: baseline; gap: 10px; padding: 6px 9px; border-radius: 7px; cursor: pointer; font-size: 14px; }
+.search-list li .nm { flex: 1; min-width: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-weight: 600; }
+.search-list li .cap { flex: none; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.search-list li[aria-selected="true"] { background: var(--sky); }
+@media (hover: hover) { .search-list li:hover { background: var(--sky); } }
+.search-msg { pointer-events: auto; width: fit-content; max-width: 240px; margin: 6px 0 0; padding: 4px 10px; border-radius: 8px;
+  background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; box-shadow: 0 1px 0 var(--rule); }
+.search-msg[hidden] { display: none; }
+@media (max-width: 720px) { .search { width: min(220px, calc(100vw - 212px)); } } /* clear of the language bar */
+/* The pin: its tip on the ground at the postcode's middle or the street's, the name beside its head. Under the panels and cards. */
+.pin { position: fixed; left: 0; top: 0; width: 0; height: 0; pointer-events: none; }
+.pin[hidden] { display: none; }
+.pin svg { position: absolute; left: -13px; top: -35px; width: 26px; height: 35px; overflow: visible;
+  filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .3)); }
+.pin path { fill: var(--red); stroke: var(--paper); stroke-width: 1.5; }
+.pin circle { fill: var(--paper); }
+.pin b { position: absolute; left: 15px; top: -36px; padding: 2px 7px; border-radius: 6px; background: var(--paper); color: var(--ink);
+  font-size: 13px; font-weight: 800; letter-spacing: .02em; white-space: nowrap; font-variant-numeric: tabular-nums;
+  box-shadow: 0 1px 0 var(--rule), 0 3px 10px var(--shadow); }
+
+/* Green areas: a pill under Hills, the same make, filled while the parks and woods are on the ground. */
+.green-toggle { position: fixed; right: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 245px);
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 11px 5px 9px; border: 0; border-radius: 999px;
+  background: var(--paper); color: var(--ink); font-size: 12px; font-weight: 600; cursor: pointer; box-shadow: 0 1px 0 var(--rule); }
+.green-toggle svg { width: 16px; height: 15px; fill: none; stroke: currentColor; stroke-width: 1.4; stroke-linejoin: round; stroke-linecap: round; }
+.green-toggle:hover { box-shadow: 0 0 0 1.5px var(--ink); }
+.green-toggle[aria-pressed="true"] { background: var(--ink); color: var(--paper); }
+.green-toggle.loading { opacity: .55; cursor: progress; }
+@media (max-width: 720px) {
+  .green-toggle { top: calc(env(safe-area-inset-top, 0px) + 199px); right: 14px; padding: 4px 9px 4px 7px; }
+}
