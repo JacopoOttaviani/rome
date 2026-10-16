@@ -178,7 +178,7 @@ def main():
         stats=dict(buildings=len(b), wikidata=int((flags == 0).sum()), wikidataApprox=int((flags == 1).sum()),
                    census=int((flags == 2).sum()), censusOld=int((flags == 3).sum()), estimated=int((flags == 4).sum()),
                    undated=int((flags == 5).sum()), construction=int((flags == 6).sum()),
-                   ispra=int((flags == 7).sum()), ispraNew=int((flags == 8).sum()), ispraBuilt=int((flags == 10).sum()),
+                   ispra=int((flags == 7).sum()), ispraNew=int((flags == 8).sum()), ispraBuilt=int((flags == 10).sum()), surveyNew=int((flags == 11).sum()),
                    surveyed=int((b.kind != "osm").sum()), newer=int((b.kind == "osm").sum()), useOsm=len(fixed),
                    residential=int(((flags == 2) | (flags == 3)).sum())),
     )

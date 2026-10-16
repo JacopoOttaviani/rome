@@ -27,6 +27,8 @@ Rome has no register that dates each building, so dates come from four sources, 
                    present building was begun and finished, shown from the year it was finished
   ispra_built      a surveyed building ISPRA's maps show no building on in 2006 and first show later, that the census
                    leaves without a period (finished after October 2011, or not a home): the window between the maps
+  survey_new       a home the census does not count, where the survey draws far more than it does (CENSUS_CAP), that
+                   the 2014 survey added or redrew and ISPRA's 2006 map shows: 2003–2006, drawn faded
 
 ISPRA's maps also steer the census: a building they show new since 2006 takes the section's 2006–2011 period first,
 and a building standing in 2006 never does. Of the buildings the 2003 survey drew, 99.2% stand on the 2006 map and
@@ -46,9 +48,9 @@ from .periods import PERIODS, UNKNOWN, UNKNOWN_YEAR, period_index
 from .wikidata import ancient_ok, dates_its_building, founding_only, labels_of, parse_time, placed, span
 
 (FLAG_WIKIDATA, FLAG_WIKIDATA_APPROX, FLAG_CENSUS, FLAG_CENSUS_OLD, FLAG_ESTIMATED, FLAG_UNDATED, FLAG_CONSTRUCTION,
- FLAG_ISPRA, FLAG_ISPRA_NEW, FLAG_BY_HAND, FLAG_ISPRA_BUILT) = range(11)
+ FLAG_ISPRA, FLAG_ISPRA_NEW, FLAG_BY_HAND, FLAG_ISPRA_BUILT, FLAG_SURVEY_NEW) = range(12)
 FLAGS = ["wikidata", "wikidata_approx", "census", "census_old", "estimated", "undated", "construction", "ispra",
-         "ispra_new", "by_hand", "ispra_built"]
+         "ispra_new", "by_hand", "ispra_built", "survey_new"]
 MONUMENTS = ("monument", "fountain")
 CENSUS = 2011
 # Census buckets E8…E16: (variable, first year, last year). The last ends with the census, of October 2011.
@@ -57,6 +59,11 @@ BUCKETS = [("E8", None, 1918), ("E9", 1919, 1945), ("E10", 1946, 1960), ("E11", 
 # A Wikidata item that began before the survey and opened after it was still being built at the survey, as long as
 # the works fit in this many years: La Nuvola, 2008–2016. A longer gap is more likely a reopening.
 WORKS_YEARS = 15
+# The census counts the homes in use in October 2011. Where the survey draws many more in a section (a district built
+# since, or not yet lived in: Mezzocammino's 64 homes against 17 the census counted, mostly of the 1950s), the census
+# describes at most this many times its count. In sections with no growth (every home in the 2003 survey and on ISPRA's
+# 2006 map) the survey draws at most one and a half times the census's count nine times in ten.
+CENSUS_CAP = 1.5
 OLD_RIONI = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV"}
 # Dated by hand, by building id: (begun, finished, source). Roma Termini: the census counts no homes there, and
 # Wikidata's item gives only the 1863 opening of the station it replaced, so its neighbours dated it to the 1890s.
@@ -114,11 +121,23 @@ def assign_census(b: gpd.GeoDataFrame, s: gpd.GeoDataFrame, rione: pd.Series) ->
     seen06 = ispra == 2006
     new06 = (ispra > 2006) & (ispra <= 2015) & fresh_all  # finished by 2014: a later first sighting is ISPRA's miss
     bucket = b.bucket.to_numpy().copy()
+    surplus = np.zeros(len(b), bool)
     for sez, idx in b[res].groupby("section").groups.items():
         c = counts.loc[sez].to_numpy(float)
         if c.sum() == 0:
             continue
         idx = np.asarray(idx)
+        # More homes than the census can describe (CENSUS_CAP): the surplus, new since 2006 first, then added or
+        # redrawn in 2014, is left out of the census. Homes of the 2003 survey stay in it: where the survey only draws
+        # an old block finer than the census counts it (the Esquilino), the census still speaks for them.
+        # Only where the 2003 survey's homes fit within it: where they alone already outnumber the census, the survey
+        # draws an old area finer than the census counts it (the INA-Casa Tuscolano), and its redrawn homes are old too.
+        cap = int(np.ceil(c.sum() * CENSUS_CAP))
+        if len(idx) > cap and (~fresh_all[idx]).sum() <= cap:
+            weak = idx[np.lexsort((u_order[idx], ~fresh_all[idx], ~new06[idx]))][:len(idx) - cap]
+            weak = weak[fresh_all[weak]]
+            surplus[weak] = True
+            idx = np.setdiff1d(idx, weak)
         # More new buildings than the census's 2006–2011 count: the last ISPRA saw were finished after the census
         # (October 2011). They leave the census to ISPRA's own window (apply_ispra).
         new = idx[new06[idx]]
@@ -154,9 +173,14 @@ def assign_census(b: gpd.GeoDataFrame, s: gpd.GeoDataFrame, rione: pd.Series) ->
             rows, y0 = rows[~old], 1871  # the rioni drawn after 1870 grew between 1871 and 1918
         year[rows] = np.round(y0 - 0.5 + u_year[rows] * (y1 - y0 + 1)).astype(int)
         flag[rows], y0s[rows], y1s[rows] = FLAG_CENSUS, y0, y1
+    # The surplus standing on ISPRA's 2006 map: built between the 2003 survey and it, most likely. The rest of the
+    # surplus is new since 2006, and ISPRA dates it (apply_ispra).
+    late = np.where(surplus & fresh_all & seen06)[0]
+    year[late], flag[late], y0s[late], y1s[late] = 2006, FLAG_SURVEY_NEW, 2003, 2006
     b["year"], b["date_flag"], b["period"], b["y0"], b["y1"] = year, flag, period, y0s, y1s
     print("census:", int((flag == FLAG_CENSUS).sum()), "by period,", int((flag == FLAG_CENSUS_OLD).sum()),
-          "before 1919 with no year;", int(res.sum()), "residential buildings in sections")
+          "before 1919 with no year;", int(res.sum()), "residential buildings in sections;", int(surplus.sum()),
+          "beyond what the census counts, of which", len(late), "added or redrawn since 2003 and standing in 2006")
 
 
 def same_name(survey: str, label: str) -> bool:

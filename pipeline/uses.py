@@ -52,6 +52,12 @@ PRIORITY = ["transport", "health", "office", "school", "worship", "culture", "mi
             "farm", "public", "home", "none"]
 
 
-def main_use(codes: list) -> str:
-    """The use (EDIFC_USO code) that names a building, of the several the survey may list; ties keep its order."""
+def main_use(codes: list, ty: str = "") -> str:
+    """The use (EDIFC_USO code) that names a building, of the several the survey may list; ties keep its order. A
+    building the survey types as a church that lists a religious use is a church first: San Paolo fuori le Mura with its
+    hospital, Gesù Bambino with its school."""
+    if ty in WORSHIP_TYPES:
+        religious = [c for c in codes if c.startswith("05")]
+        if religious:
+            return religious[0]
     return min(codes, key=lambda c: PRIORITY.index(USES[use_of("edifc", c, "")][0]))
