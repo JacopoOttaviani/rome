@@ -69,7 +69,13 @@ live site with the Chrome on this machine; run it again after the data changes, 
     (the survey's 'Santa Maria dei Martiri' is the Pantheon). A building still being built at the 2014 survey takes
     its opening, since its inception is when the works began: one the survey drew as under construction, or one whose
     item began by 2014 and opened after it within 15 years (La Nuvola, 2008–2016; the temple of the Latter-day
-    Saints, 2008–2019). Any other date after 2014 belongs to something else on the site and is left out.
+    Saints, 2008–2019). Any other date after 2014 belongs to something else on the site and is left out. So does the
+    date of a museum, university or academy whose item is not the building itself: it is the institution's founding
+    (Palazzo Massimo's 1998 is the museum's, in a palace of the 1880s; the Galleria Borghese's 1903 is when the state
+    bought a villa of 1613). A hospital's counts after 1870, when hospitals were built for themselves, not before
+    (Santo Spirito's 727). A Roman ruin under a block of flats taller than 15 m does not date the flats. Items land on the building their coordinate falls in; a church's that falls on the
+    block beside it moves to the church within 15 m (Sant'Andrea della Valle), unless it fell on a minor building, which
+    is how the survey files small chapels (Bramante's Tempietto); a metro station's dates and names no building above it.
   - **The 2011 census** counts the residential buildings of each of Rome's 13,656 sections by period of construction
     (before 1919, 1919–45, 1946–60, 1961–70, 1971–80, 1981–90, 1991–2000, 2001–05, after 2005). Each section's
     residential DBGT buildings are given those periods in the same proportions. Which building gets which period is
@@ -100,6 +106,16 @@ live site with the Chrome on this machine; run it again after the data changes, 
     takes the median year of its twelve nearest census-dated buildings, drawn paler; where those are mostly "before
     1919", so is it, with no circa-year. Ruins, monuments and fountains no source dates join "before 1919 or
     undated", and their cards say "date unknown".
+  - **By hand.** Five landmarks no source dates rightly take their years from their history (Italian Wikipedia):
+    Roma Termini 1939–1950 (Mazzoni's project approved in 1939, the station inaugurated in December 1950; its Wikidata
+    item gives only the 1863 opening of the station it replaced, and its neighbours had dated it to the 1890s), Roma
+    Trastevere station 1911, the Palazzo delle Esposizioni 1880–1882 and the MAXXI 2010, whose Wikidata dates are the
+    museums' (see below), and the Palazzo dei Conservatori 1568, whose only other date is the glass hall of 2005 inside.
+- **Uses.** The survey lists 248 buildings with several uses, in no order of importance (Termini's list starts with
+  the Carabinieri post and ends with the station). The use that says most about the building names it: station,
+  hospital, ministry or embassy, school, church, culture, military, shop, hotel, industry, farm, other public
+  services, homes. A building with homes and another use takes the other one, as most of them already listed it first.
+  The churches and embassies layers read every use: a church inside a school is still in the churches layer.
 - **Heights.** Every DBGT volume unit carries its eaves height; a building's height is its tallest volume above its
   lowest base. Monuments (the Colosseum, arches, columns) are drawn by the survey without a
   height: they take Wikidata's (P2048) where it has one, else a default of 8 m (3 m for fountains), and their cards

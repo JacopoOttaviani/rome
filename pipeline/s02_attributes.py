@@ -23,6 +23,8 @@ Rome has no register that dates each building, so dates come from four sources, 
   undated          a ruin (DBGT state 'diruto, rudere'), monument or fountain no source dates: year unknown
   construction     under construction at its survey, and ISPRA's maps up to 2021 do not date its completion:
                    the year of that survey
+  by_hand          a landmark none of the above dates, or dates wrongly, dated from its history (BY_HAND): when its
+                   present building was begun and finished, shown from the year it was finished
 """
 import hashlib
 import re
@@ -35,12 +37,12 @@ from scipy.spatial import cKDTree
 from .city import CRS, ISTAT, STOREY_M, SURVEY
 from .ispra import window
 from .periods import PERIODS, UNKNOWN, UNKNOWN_YEAR, period_index
-from .wikidata import ancient_ok, dates_its_building, labels_of, parse_time, placed, span
+from .wikidata import ancient_ok, dates_its_building, founding_only, labels_of, parse_time, placed, span
 
 (FLAG_WIKIDATA, FLAG_WIKIDATA_APPROX, FLAG_CENSUS, FLAG_CENSUS_OLD, FLAG_ESTIMATED, FLAG_UNDATED, FLAG_CONSTRUCTION,
- FLAG_ISPRA, FLAG_ISPRA_NEW) = range(9)
+ FLAG_ISPRA, FLAG_ISPRA_NEW, FLAG_BY_HAND) = range(10)
 FLAGS = ["wikidata", "wikidata_approx", "census", "census_old", "estimated", "undated", "construction", "ispra",
-         "ispra_new"]
+         "ispra_new", "by_hand"]
 MONUMENTS = ("monument", "fountain")
 CENSUS = 2011
 # Census buckets E8…E16: (variable, first year, last year). The last ends with the census, of October 2011.
@@ -50,6 +52,22 @@ BUCKETS = [("E8", None, 1918), ("E9", 1919, 1945), ("E10", 1946, 1960), ("E11", 
 # the works fit in this many years: La Nuvola, 2008–2016. A longer gap is more likely a reopening.
 WORKS_YEARS = 15
 OLD_RIONI = {"I", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X", "XI", "XII", "XIII", "XIV"}
+# Dated by hand, by building id: (begun, finished, source). Roma Termini: the census counts no homes there, and
+# Wikidata's item gives only the 1863 opening of the station it replaced, so its neighbours dated it to the 1890s.
+# Mazzoni's project was approved in 1939 and his side wings built until 1943; the front by Montuori and Vitellozzi
+# was finished and the station inaugurated on 20 December 1950.
+BY_HAND = {
+    "3740001043780": (1939, 1950, "https://it.wikipedia.org/wiki/Stazione_di_Roma_Termini"),
+    # Railway stations have no Wikidata date of their building: Roma Trastevere moved here in May 1911.
+    "3740001128882": (1911, 1911, "https://it.wikipedia.org/wiki/Stazione_di_Roma_Trastevere"),
+    # Museums built for themselves, whose Wikidata date is the museum's (founding_only leaves it out): Palazzo delle
+    # Esposizioni, built 1880–1882 and opened in January 1883; the MAXXI, opened in May 2010.
+    "3740000996504": (1880, 1882, "https://it.wikipedia.org/wiki/Palazzo_delle_Esposizioni"),
+    "3740000986180": (2010, 2010, "https://it.wikipedia.org/wiki/MAXXI_-_Museo_nazionale_delle_arti_del_XXI_secolo"),
+    # Palazzo dei Conservatori: the Capitoline Museums' date is the museum's (1471) and the only other is the glass
+    # hall of 2005 inside; Michelangelo's rebuilding was finished by Giacomo Della Porta in 1568.
+    "3740001136177": (1568, 1568, "https://it.wikipedia.org/wiki/Palazzo_dei_Conservatori"),
+}
 
 
 def unit_hash(ids, salt: str) -> np.ndarray:
@@ -150,7 +168,7 @@ def date_of(inception: str, opening: str, unfinished_at: int = 0):
     return (opened, 9, False) if opened else None
 
 
-def apply_wikidata(b: gpd.GeoDataFrame) -> None:
+def apply_wikidata(b: gpd.GeoDataFrame, height: pd.Series) -> None:
     """A building's own Wikidata item wins over the census: inception, else official opening (see date_of).
     Where several items stand on one building, the best known (most sitelinks) speaks for it."""
     it = placed()
@@ -160,6 +178,8 @@ def apply_wikidata(b: gpd.GeoDataFrame) -> None:
     it["t"] = [date_of(inc, op, unfinished_at.get(i, 0)) for inc, op, i in zip(it.inception, it.opening, it.bid)]
     it = it[it.t.notna()]
     it = it[[t[0] >= 500 or ancient_ok(c) for t, c in zip(it.t, it.classes)]]
+    # A museum's, a hospital's or a university's date is its founding, not its building's (wikidata.founding_only).
+    it = it[[not founding_only(c, t[0]) for t, c in zip(it.t, it.classes)]]
     # A fountain is dated by a fountain only: the Stadium of Domitian is not the Four Rivers.
     fountains = set(b.id[b.kind == "fountain"])
     it = it[~it.bid.isin(fountains)]
@@ -170,8 +190,12 @@ def apply_wikidata(b: gpd.GeoDataFrame) -> None:
     it["match"] = [same_name(name.get(i, ""), x) or same_name(name.get(i, ""), y) for i, x, y in zip(it.bid, it.it, it.en)]
     # ... unless the item is a church or a castle still standing in use: the survey's 'Santa Maria dei Martiri'
     # is the Pantheon.
-    in_use = it.classes.map(lambda c: any(k in l for l in labels_of(c) for k in ("church", "basilica", "castle")))
-    it = it[[t[0] >= 500 or m or u or not name.get(i) for t, m, u, i in zip(it.t, it.match, in_use, it.bid)]]
+    it["in_use"] = it.classes.map(lambda c: any(k in l for l in labels_of(c) for k in ("church", "basilica", "castle")))
+    it = it[[t[0] >= 500 or m or u or not name.get(i) for t, m, u, i in zip(it.t, it.match, it.in_use, it.bid)]]
+    # Nor does a ruin under a block of flats date the flats (the Curia of Pompey, under a 26 m palazzo by
+    # Sant'Andrea della Valle): an ancient date on a home taller than 15 m needs a church still in use.
+    flats = set(b.id[(b.use == "01") & (b.id.map(height) > 15)])
+    it = it[[t[0] >= 500 or u or i not in flats for t, u, i in zip(it.t, it.in_use, it.bid)]]
     it = it.sort_values(["match", "links"], ascending=False).drop_duplicates("bid")
     row_of = {k: i for i, k in enumerate(b.id)}
     u = unit_hash(b.id, "wikidata")
@@ -192,6 +216,15 @@ def apply_wikidata(b: gpd.GeoDataFrame) -> None:
         b.at[i, "qid_date"] = q
         n += 1
     print("wikidata:", n, "buildings dated by their own item")
+
+
+def apply_by_hand(b: gpd.GeoDataFrame) -> None:
+    """The buildings in BY_HAND take their dates from there, over every other source."""
+    for bid, (begun, finished, _) in BY_HAND.items():
+        i = b.index[b.id == bid]
+        b.loc[i, ["year", "y0", "y1", "date_flag", "qid_date"]] = finished, begun, finished, FLAG_BY_HAND, ""
+        b.loc[i, "period"] = period_index(finished)
+    print("by hand:", int(b.id.isin(BY_HAND).sum()), "buildings")
 
 
 def apply_ispra(b: gpd.GeoDataFrame) -> None:
@@ -258,7 +291,8 @@ def main():
     r = gpd.sjoin(pts, rioni[["num", "geometry"]], predicate="within").drop_duplicates("i").set_index("i").num
     b["rione"] = r.reindex(range(len(b))).values
     assign_census(b, sections(), b.rione)
-    apply_wikidata(b)
+    apply_wikidata(b, (q.UN_VOL_QE - q.ground).groupby(q.id).max())  # heights, for ruins under flats
+    apply_by_hand(b)
     apply_ispra(b)
     estimate_rest(b)
     dated = b.period < 0

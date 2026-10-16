@@ -40,3 +40,16 @@ def use_of(kind: str, use: str, ty: str) -> int:
         return INDEX["school"]
     return INDEX[{"01": "home", "02": "office", "03": "public", "04": "military", "06": "transport", "07": "shop",
                   "08": "industry", "09": "farm", "10": "culture", "11": "public", "12": "hotel"}.get(use[:2], "none")]
+
+
+# The survey lists a building's several uses in no particular order: Roma Termini's starts with the Carabinieri post
+# and ends with the station. The use that says most about the building wins: a station, a hospital, a ministry or a
+# school is what it is with a chapel, a police post or a caretaker's flat inside. Homes and the generic public
+# services come last, so an embassy or a police station in an apartment block keeps its use, as it was listed first.
+PRIORITY = ["transport", "health", "office", "school", "worship", "culture", "military", "shop", "hotel", "industry",
+            "farm", "public", "home", "none"]
+
+
+def main_use(codes: list) -> str:
+    """The use (EDIFC_USO code) that names a building, of the several the survey may list; ties keep its order."""
+    return min(codes, key=lambda c: PRIORITY.index(USES[use_of("edifc", c, "")][0]))

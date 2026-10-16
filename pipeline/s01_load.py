@@ -25,6 +25,7 @@ from scipy.spatial import cKDTree
 
 from .city import CRS, ISTAT, ISTAT_VATICAN, STOREY_M
 from .ispra import first_built
+from .uses import main_use
 
 RAW = Path("data/raw/dbt")
 KEEP = (ISTAT, ISTAT_VATICAN)
@@ -73,19 +74,21 @@ def load_sheet(sheet):
     e = read(sheet, "EDIFC.dbf", read_geometry=False)
     e = e[e.COD_ISTAT.isin(KEEP) & (e.EDIFC_SOT != "02")]
     uses = read(sheet, "EDIFC_EDIFC_USO.dbf", read_geometry=False)
-    # A building can have several uses; the first listed is its main one.
-    use = uses.drop_duplicates("CLASSREF").set_index("CLASSREF").EDIFC_USO
+    # A building can have several uses, listed in no order of importance: uses.main_use picks the one that names it.
+    use = uses.groupby("CLASSREF").EDIFC_USO.agg(lambda c: main_use(list(c)))
+    all_uses = uses.groupby("CLASSREF").EDIFC_USO.agg("|".join)  # every one, for the layers (a church inside a school)
     names = read(sheet, "EDIFC_EDIFC_NOME_T.dbf", read_geometry=False)
     name = names.drop_duplicates("CLASSREF").set_index("CLASSREF").NOME if names is not None else pd.Series(dtype=str)
     b = pd.DataFrame(dict(classid=e.CLASSID, istat=e.COD_ISTAT, kind="edifc", ty=e.EDIFC_TY, state=e.EDIFC_STAT,
                           monumental=e.EDIFC_MON.astype(int), updated=e.DATA_AGG.astype(str).str[:4].astype(int),
-                          use=e.CLASSID.map(use).fillna(""), name=e.CLASSID.map(name).fillna("")))
+                          use=e.CLASSID.map(use).fillna(""), uses=e.CLASSID.map(all_uses).fillna(""),
+                          name=e.CLASSID.map(name).fillna("")))
     m = read(sheet, "EDI_MIN.dbf", read_geometry=False)
     if m is not None:
         m = m[m.COD_ISTAT.isin(KEEP) & (m.EDI_MIN_SO != "02")]
         b = pd.concat([b, pd.DataFrame(dict(classid=m.CLASSID, istat=m.COD_ISTAT, kind="minor", ty=m.EDI_MIN_TY,
                                             state=m.EDI_MIN_ST, monumental=0,
-                                            updated=m.DATA_AGG.astype(str).str[:4].astype(int), use="", name=""))])
+                                            updated=m.DATA_AGG.astype(str).str[:4].astype(int), use="", uses="", name=""))])
     foot = [read(sheet, f) for f in ("EDIFC_CR_EDF_IS.shp", "EDI_MIN_CR_EDF_IS.shp")]
     foot = pd.concat([f for f in foot if f is not None]).drop_duplicates("CLASSREF").set_index("CLASSREF").geometry
     b["geometry"] = b.classid.map(foot)
@@ -126,7 +129,7 @@ def monuments(sheet):
     h = np.where(kind == "fountain", DEFAULT_H["fountain"], DEFAULT_H["monument"])
     b = gpd.GeoDataFrame(dict(classid=m.CLASSID.values, istat=m.COD_ISTAT.values, kind=kind, ty=m.MN_MAU_TY.values,
                               state="03", monumental=1, updated=m.DATA_AGG.astype(str).str[:4].astype(int).values,
-                              use="", name="", hsrc="default"), geometry=flat, crs=CRS)
+                              use="", uses="", name="", hsrc="default"), geometry=flat, crs=CRS)
     v = gpd.GeoDataFrame(dict(CLASSID=m.CLASSID.values, CEDIUV=m.CLASSID.values, UN_VOL_AV=h, UN_VOL_QE=base + h,
                               UN_VOL_POR="01", base=base), geometry=flat, crs=CRS)
     return b, v
@@ -175,7 +178,8 @@ def newer(b: gpd.GeoDataFrame, v: gpd.GeoDataFrame):
     ground = known.ground.to_numpy()[nn[:, 0]]
 
     nb = gpd.GeoDataFrame(dict(classid=o.osm, istat=ISTAT, kind="osm", ty="", state="03", monumental=0, updated=0,
-                               use=o.building.map(OSM_USE).fillna(""), name=o.name.fillna(""), hsrc=hsrc,
+                               use=o.building.map(OSM_USE).fillna(""), uses=o.building.map(OSM_USE).fillna(""),
+                               name=o.name.fillna(""), hsrc=hsrc,
                                sheet="osm", id=ids, ground=ground, ispra=o.ispra),
                           geometry=o.geometry.values, crs=CRS)
     nv = gpd.GeoDataFrame(dict(id=ids, UN_VOL_AV=h, UN_VOL_QE=ground + h, UN_VOL_POR="01", base=ground, ground=ground),

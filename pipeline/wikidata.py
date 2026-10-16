@@ -65,6 +65,30 @@ def gone(item_classes: str, state: str) -> bool:
             or bool(GONE_STATES & set(state.split("|"))))
 
 
+# An institution's item (a museum, hospital, university, academy) carries the institution's founding, not its
+# building's date: the Galleria Borghese's 1903 is when the state bought a villa of 1613, Palazzo Massimo's 1998 the
+# museum's opening in a palace of the 1880s, Santo Spirito's 727 the hospital's founding. Such an item dates its
+# building only when it is also a building: an ancient monument, a church or a palace before 1870, and after it a
+# purpose-built one (a school building, a theatre, a hospital: the Policlinico Umberto I, the Forlanini), never a
+# museum in a palace or villa.
+INSTITUTIONS = ("museum", "library", "university", "academy", "school", "institute", "hospital", "organization",
+                "foundation", "college", "archive", "seminary", "research", "polyclinic")
+ARCHITECTURE = ("building", "temple", "church", "basilica", "amphitheatre", "theatre", "mausoleum", "tomb", "pyramid",
+                "castle", "château", "palazzo", "palace", "villa", "cloister", "tower", "stadium", "skyscraper")
+OLD_HOUSES = ("palazzo", "palace", "villa", "castle", "château", "cloister", "convent", "monastery", "house museum")
+
+
+def founding_only(item_classes: str, year: int) -> bool:
+    """True when the item's date is an institution's founding rather than its building's (see INSTITUTIONS)."""
+    labels = labels_of(item_classes)
+    has = lambda keys: any(k in l for l in labels for k in keys)
+    if not has(INSTITUTIONS):
+        return False
+    if year <= 1870:
+        return not has(ARCHITECTURE)
+    return not has(ARCHITECTURE + ("hospital", "polyclinic")) or has(OLD_HOUSES)
+
+
 def ancient_ok(item_classes: str) -> bool:
     return any(k in l for l in labels_of(item_classes) for k in ANCIENT_CLASSES)
 
@@ -122,4 +146,35 @@ def placed() -> pd.DataFrame:
     rest = it[~it.index.isin(inside.index) & (it.kind == "building")]
     near = gpd.sjoin_nearest(rest, b, max_distance=NEAR, distance_col="dist").rename(columns={"id": "bid"})
     near = near[~near.index.duplicated()].drop(columns="index_right")
-    return pd.concat([inside, near])
+    return to_their_buildings(pd.concat([inside, near]))
+
+
+# A church's coordinate often falls on the block beside it (Sant'Andrea della Valle's on the palazzo next door), and an
+# underground metro station's on the flats above it. Such an item goes to the nearest building the survey codes for it, within
+# SNAP metres, unless that building already has an item of its own of the kind (twin churches stay apart); a church
+# that finds none stays where it fell. An underground station has no building of its own and is left out. A church on a minor building stays there: the survey files
+# small chapels so (Bramante's Tempietto).
+SNAP = 15.0
+BELONGS = {"worship": (("church", "basilica", "chapel", "oratory", "cathedral"), ("civil basilica", "former")),
+           "transport": (("metro station", "underground station"), ("station located on surface",))}
+
+
+def to_their_buildings(p: gpd.GeoDataFrame) -> gpd.GeoDataFrame:
+    from .uses import USES, use_of
+    b = gpd.read_parquet("data/buildings_raw.parquet", columns=["id", "kind", "ty", "use", "geometry"])
+    cat = pd.Series([USES[use_of(k, u, t)][0] for k, u, t in zip(b.kind, b.use, b.ty)], index=b.id.values)
+    minor = set(b.id[b.kind == "minor"])
+    p = p.reset_index(drop=True)
+    for want, (keys, unless) in BELONGS.items():
+        labels = p.classes.map(labels_of)
+        of_kind = labels.map(lambda ls: any(k in l for l in ls for k in keys) and not any(u in l for l in ls for u in unless))
+        home = (p.bid.map(cat) == want) | (p.bid.isin(minor) if want == "worship" else False)
+        astray = p[of_kind & ~home]
+        if want == "transport":
+            p = p.drop(astray.index)
+            continue
+        free = b[(cat == want).values & ~b.id.isin(set(p.bid[of_kind & home]))]
+        snap = gpd.sjoin_nearest(astray[["geometry"]], free[["id", "geometry"]], max_distance=SNAP, distance_col="d")
+        snap = snap[~snap.index.duplicated()]
+        p.loc[snap.index, "bid"], p.loc[snap.index, "dist"] = snap.id.values, snap.d.values
+    return p

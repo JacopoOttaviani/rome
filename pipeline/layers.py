@@ -29,7 +29,7 @@ def layer(**meta):
 
 @cache
 def buildings() -> pd.DataFrame:
-    return pd.read_parquet("data/buildings.parquet", columns=["id", "kind", "use", "ty", "state", "istat", "rione",
+    return pd.read_parquet("data/buildings.parquet", columns=["id", "kind", "use", "uses", "ty", "state", "istat", "rione",
                                                                "year", "date_flag", "name"])
 
 
@@ -169,8 +169,10 @@ def heritage():
 def faith():
     b = buildings()
     out = {}
-    for i, use, ty in zip(b.id, b.use, b.ty):
-        if ty in ("06", "07", "11", "22") or use.startswith("05"):
+    # Any of the survey's uses: a church inside a school or a convent is still a church; a station's chapel does not
+    # make Termini one.
+    for i, use, uses, ty in zip(b.id, b.use, b.uses, b.ty):
+        if ty in ("06", "07", "11", "22") or (any(u.startswith("05") for u in uses.split("|")) and not use.startswith("06")):
             out[i] = "church"
     for r in items().itertuples():
         if r.bid in out and "basilica" in (r.it or "").lower():
@@ -191,7 +193,7 @@ def faith():
 def holysee():
     b = buildings()
     out = {i: "vatican" for i in b.id[b.istat == "058000"]}
-    out.update({i: "embassy" for i in b.id[b.use.str.startswith("0204")]})
+    out.update({i: "embassy" for i in b.id[b.uses.map(lambda us: any(u.startswith("0204") for u in us.split("|")))]})
     return out
 
 

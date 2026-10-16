@@ -16,7 +16,7 @@ from urllib.parse import unquote
 import pandas as pd
 import requests
 
-from .wikidata import dates_its_building, placed
+from .wikidata import dates_its_building, labels_of, placed
 
 UA = {"User-Agent": "rome-by-building/0.1 (open-data map of Rome's buildings; https://github.com/alexbarakov/amsterdam-by-building fork)"}
 
@@ -115,7 +115,10 @@ def tidy(name):
 def main():
     # The building's own item first (a church, not the altarpiece inside it), then the best known.
     it = placed()
-    it["own"] = it.classes.map(dates_its_building)
+    # A railway station is not a building to Wikidata, but its item is the station building's own: Roma Termini, not
+    # the cinema inside it. (Its date is the first station's, and dates nothing: s02.)
+    it["own"] = it.classes.map(lambda c: dates_its_building(c)
+                               or any(k in l for l in labels_of(c) for k in ("railway station", "train station")))
     it = it.sort_values(["own", "links"], ascending=False).drop_duplicates("bid")
     file_of = lambda url: unquote(url.rsplit("/", 1)[1]).replace("_", " ") if url else None
     ex_en = cached("extracts_en", lambda t: extracts("en", t), {title_of(u) for u in it.wEn if u})
