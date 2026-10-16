@@ -21,7 +21,7 @@ const GROUP_COLORS = ['#ec0000', '#1f4e8c', '#d99a12', '#2e8b57', '#7b3fa0', '#0
 const MAX_GROUPS = GROUP_COLORS.length;
 const ATTR_W = 256;
 const WORKERS = Math.min(4, navigator.hardwareConcurrency || 2);
-const MODE = { period: 0, floors: 1, use: 2, layers: 3 };
+const MODE = { period: 0, use: 2, layers: 3 }; // 1 was storeys, removed: height ÷ 3.2 m misread Rome's tall floors
 // Date flags (pipeline/s02_attributes.py). Approximate ones are drawn paler.
 const FLAG = { wikidata: 0, wikidataApprox: 1, census: 2, censusOld: 3, estimated: 4, undated: 5, construction: 6, ispra: 7, ispraNew: 8 };
 
@@ -36,14 +36,14 @@ const attrs = new DataView(attrBuf);
 // English and Italian. Data carries `<field>_it` next to each English text; the interface strings are below.
 const IT_UI = {
   'About': 'Info', 'Photo': 'Foto', 'Source': 'Fonte', 'Close': 'Chiudi',
-  'Period': 'Epoca', 'Context layers': 'Contesti', 'Floors': 'Piani', 'Use': 'Uso',
+  'Period': 'Epoca', 'Context layers': 'Contesti', 'Use': 'Uso',
   'buildings': 'edifici', 'Building the city': 'Costruendo la città', 'All roads lead to Rome.': 'Tutte le strade portano a Roma.',
   'Drag to turn. Right-drag or Shift-drag to move. Scroll to zoom.': 'Trascina per ruotare. Trascina col tasto destro o con Shift per spostarti. Scorri per lo zoom.',
   'Show legend': 'Mostra legenda', 'Hide legend': 'Nascondi legenda',
   'Built in': 'Costruito', 'Click a period to see it alone. Faded buildings have an estimated date.': 'Clicca su un’epoca per vederla da sola. Gli edifici sbiaditi hanno una data stimata.',
   'Made with 💙 by': 'Fatto con 💙 da', 'North up': 'Nord in alto', 'Spin the city': 'Fai girare la città', 'Stop spinning': 'Ferma la rotazione', 'Buy me a coffee': 'Offrimi un caffè', 'Dark mode': 'Tema scuro', 'Light mode': 'Tema chiaro',
-  'Storeys': 'Piani', 'All context layers': 'Tutti i contesti', 'Buildings and their stories': 'Gli edifici e le loro storie',
-  'Height': 'Altezza', 'height ÷ 3.2 m': 'altezza ÷ 3,2 m', 'Architect': 'Architetto', 'Architects': 'Architetti', 'Style': 'Stile',
+  'All context layers': 'Tutti i contesti', 'Buildings and their stories': 'Gli edifici e le loro storie',
+  'Height': 'Altezza', 'Architect': 'Architetto', 'Architects': 'Architetti', 'Style': 'Stile',
   'In layers': 'Nei contesti', 'Dating': 'Datazione', 'Read more': 'Per saperne di più',
   'Wikipedia': 'Wikipedia', 'Italian Wikipedia': 'Wikipedia in italiano', 'Wikidata': 'Wikidata', 'On OpenStreetMap': 'Su OpenStreetMap',
   'Click for the story and sources': 'Clicca per la storia e le fonti', 'Click to keep this card open': 'Clicca per tenere aperta la scheda',
@@ -289,11 +289,6 @@ const VERT = /* glsl */`
   out float vGid;
   out float vLift;
 
-  vec3 floorsRamp(float f) {
-    float t = clamp(log(f) / log(40.0), 0.0, 1.0);
-    vec3 a = vec3(0.86, 0.89, 0.90), b = vec3(0.49, 0.66, 0.75), c = vec3(0.17, 0.36, 0.55), d = vec3(0.05, 0.10, 0.25);
-    return t < 0.33 ? mix(a, b, t / 0.33) : t < 0.66 ? mix(b, c, (t - 0.33) / 0.33) : mix(c, d, (t - 0.66) / 0.34);
-  }
 
   bool hasBit(vec4 words, int bit) {
     int w = bit / 16;
@@ -311,7 +306,7 @@ const VERT = /* glsl */`
     int period = pf % 16;
     int flag = pf / 16;
     vGid = a.w;
-    float vis = uMode < 1.5 ? uMask[period] : 1.0;
+    float vis = uMode < 0.5 ? uMask[period] : 1.0;
     float g = clamp((uYear - year + 1.0) / uRise, 0.0, 1.0);
     g = g * g * (3.0 - 2.0 * g);
     if (g <= 0.003 || vis <= 0.003) { gl_Position = vec4(2.0, 2.0, 2.0, 1.0); return; }
@@ -334,8 +329,6 @@ const VERT = /* glsl */`
     if (uMode < 0.5) {
       c = uPalette[period];
       if (flag == 1 || flag == 4 || flag == 5) c = mix(c, uMaquette, 0.45); // approximate dates, paler
-    } else if (uMode < 1.5) {
-      c = floorsRamp(mod(a.z, 128.0));
     } else if (uMode < 2.5) {
       c = uUse[int(a.z / 128.0)];
     } else {
@@ -486,7 +479,6 @@ const DATE_NOTE = [
   'Under construction when the region surveyed it. The years are the window in which ISPRA’s land maps first show a finished building here: from the survey, or the map before, to the first map that shows it. That is when the structure is visible from above, often a year or two before it opens.',
   'Newer than the region’s 2014 survey: the footprint is from OpenStreetMap. The year is when ISPRA’s land maps first show a building here, a window where the maps skip years (there are none for 2013–14). That is when the structure is visible from above, often a year or two before it opens.',
 ];
-const USE = Object.fromEntries(config.uses.keys.map((k, i) => [k, i]));
 const contextLayers = layers;
 const groupsByBit = layers.flatMap(L => L.groups.map(g => ({ ...g, layer: L })));
 
@@ -498,7 +490,6 @@ function building(gid) {
     gid,
     id: String(attrs.getFloat64(o, true)),
     height: attrs.getUint16(o + 8, true) / 10,
-    floors: attrs.getUint8(o + 10),
     flag: attrs.getUint8(o + 11),
     year: attrs.getInt16(o + 12, true),
     y0: attrs.getInt16(o + 14, true),
@@ -579,8 +570,6 @@ function cardHtml(gid, pinned) {
     : b.hsrc === 4 ? t('Height not known: the building is newer than the survey, and is drawn at the median height of its neighbours.') : '';
   const facts = [
     [t('Height'), `${b.height.toFixed(1)} m${heightNote ? `<br><span class="why">${heightNote}</span>` : ''}`],
-    // Storeys say little about a church or a monument, whose height is one tall room.
-    b.hsrc === 0 && ![USE.worship, USE.monument].includes(b.use) && [t('Storeys'), `${b.floors} <span class="why">(${t('height ÷ 3.2 m')})</span>`],
     b.use && [t('Use'), esc(t(config.uses.labels[b.use]))],
     w?.architects?.length && [t(w.architects.length > 1 ? 'Architects' : 'Architect'), w.architects.map(esc).join(', ')],
     w?.styles?.length && [t('Style'), w.styles.map(esc).join(', ')],
@@ -1017,11 +1006,6 @@ function renderPanel() {
       maskTarget = periods.map((_, j) => (solo || j === i) ? 1 : 0);
       renderPanel(); drawHist();
     });
-  } else if (mode === MODE.floors) {
-    panel.innerHTML = `<h2>${t('Storeys')}</h2>
-      <div class="ramp" style="background:linear-gradient(90deg,#dbe3e6,#7da8bf,#2b5c8c,#0d1a40)"></div>
-      <div class="ramp-scale"><span>1</span><span>3</span><span>8</span><span>20</span><span>40+</span></div>
-      <p class="note">${LANG === 'it' ? `Piani stimati dall'altezza di ogni edificio, rilevata dalla Regione Lazio nel 2014, divisa per 3,2 m.` : `Storeys estimated from each building's height, surveyed by Regione Lazio in 2014, divided by 3.2 m.`}</p>`;
   } else if (mode === MODE.use) {
     const u = config.uses;
     panel.innerHTML = `<h2>${t('Use')}</h2><div class="energy-scale">${u.labels.map((l, i) => i === 0 ? '' : `

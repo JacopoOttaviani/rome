@@ -65,7 +65,7 @@ h1 { margin: 0; padding: 5px 12px 6px; font-size: clamp(34px, 4.4vw, 56px); font
 .tally-count { display: inline-block; margin-top: 6px; padding: 2px 9px; border-radius: 6px; background: var(--paper);
   box-shadow: 0 1px 0 var(--rule); color: var(--ink); }
 
-/* Context panel: legend, ramp or layer list, always on the left under the masthead. */
+/* Context panel: legend or layer list, always on the left under the masthead. */
 .panel { position: fixed; left: var(--gutter); top: calc(env(safe-area-inset-top, 0px) + var(--gutter) + 118px);
   width: min(340px, calc(100vw - 2 * var(--gutter))); max-height: calc(100vh - 352px); overflow-y: auto;
   background: var(--paper); border-radius: 10px; padding: 14px 16px; }
@@ -114,8 +114,6 @@ h1 { margin: 0; padding: 5px 12px 6px; font-size: clamp(34px, 4.4vw, 56px); font
 .people .addr { color: var(--ink); opacity: .55; }
 .n, .tally, .card dd, .card .y { font-variant-numeric: tabular-nums; }
 .swatch[aria-pressed="false"] { opacity: .35; }
-.ramp { height: 10px; border-radius: 2px; margin: 4px 0 6px; }
-.ramp-scale { display: flex; justify-content: space-between; color: var(--muted); font-size: 12px; }
 .note { color: var(--muted); font-size: 12px; margin: 10px 0 0; }
 
 .layers { display: flex; flex-direction: column; gap: 2px; margin: 0 -8px; }

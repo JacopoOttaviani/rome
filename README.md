@@ -30,7 +30,7 @@ open data ──► pipeline/ (Python) ──► web/data/ (binary tiles + JSON)
 | `s00_fetch_osm` | The 22 rioni (Nominatim), named streets (Overpass; when the public Overpass servers are busy, as they were in October 2026, Geofabrik's extract of central Italy) building footprints and the addresses that carry a postcode (the extract) |
 | `s00_fetch_ispra` | ISPRA's land-consumption series for Roma Capitale, 2006–2021: Rome's built-up land, polygon by polygon, with its class each year |
 | `s01_load` | DBGT sheets → one row per building and its volume units (LoD1 parts with eaves heights); the buildings finished since, from OpenStreetMap; the year ISPRA's maps first show each unfinished or newer building |
-| `s02_attributes` | Dates every building (see below), heights, storeys |
+| `s02_attributes` | Dates every building (see below), and its height |
 | `s05_layers` | Resolves every context layer to a bit per building; adds Italian texts |
 | `s06_wiki` | Names, photos and extracts from Wikidata, Wikipedia and Commons; survey names for the rest |
 | `s03_tiles` | Packs 600 m tiles into 8 bundles, writes per-building attributes and the city config |
@@ -99,7 +99,7 @@ live site with the Chrome on this machine; run it again after the data changes, 
     1919", so is it, with no circa-year. Ruins, monuments and fountains no source dates join "before 1919 or
     undated", and their cards say "date unknown".
 - **Heights.** Every DBGT volume unit carries its eaves height; a building's height is its tallest volume above its
-  lowest base. Storeys are height ÷ 3.2 m. Monuments (the Colosseum, arches, columns) are drawn by the survey without a
+  lowest base. Monuments (the Colosseum, arches, columns) are drawn by the survey without a
   height: they take Wikidata's (P2048) where it has one, else a default of 8 m (3 m for fountains), and their cards
   say so. A building newer than the survey takes its OpenStreetMap height, else its storeys × 3.2 m, else the median
   height of its twelve nearest DBGT buildings (sheds and kiosks aside), on the ground of the nearest; its card says
