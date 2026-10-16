@@ -23,7 +23,7 @@ const ATTR_W = 256;
 const WORKERS = Math.min(4, navigator.hardwareConcurrency || 2);
 const MODE = { period: 0, use: 2, layers: 3 }; // 1 was storeys, removed: height ÷ 3.2 m misread Rome's tall floors
 // Date flags (pipeline/s02_attributes.py). Approximate ones are drawn paler.
-const FLAG = { wikidata: 0, wikidataApprox: 1, census: 2, censusOld: 3, estimated: 4, undated: 5, construction: 6, ispra: 7, ispraNew: 8, byHand: 9, ispraBuilt: 10 };
+const FLAG = { wikidata: 0, wikidataApprox: 1, census: 2, censusOld: 3, estimated: 4, undated: 5, construction: 6, ispra: 7, ispraNew: 8, byHand: 9, ispraBuilt: 10, surveyNew: 11 };
 
 const [config, layers, attrBuf] = await Promise.all([
   fetch('data/rome.json').then(r => r.json()),
@@ -95,6 +95,8 @@ const IT_UI = {
     'Datato a mano: nessuna fonte letta dalla mappa data correttamente questo edificio, quindi gli anni vengono dalla sua storia (Wikipedia): quando l’edificio attuale fu iniziato e quando fu finito. La mappa lo mostra dall’anno in cui fu finito.',
   'Built after 2006: ISPRA’s land maps show no building here in 2006 and first show one in the years given, the window between two of their maps. That is when the structure is visible from above, often a year or two before it opens. No other source dates this building on its own.':
     'Costruito dopo il 2006: le mappe del suolo dell’ISPRA non mostrano un edificio qui nel 2006 e lo mostrano per la prima volta negli anni indicati, l’intervallo tra due loro mappe. È quando la struttura si vede dall’alto, spesso un anno o due prima dell’apertura. Nessun’altra fonte data questo edificio.',
+  'Not among the homes the 2011 census counts in this section, which are far fewer than the survey draws here: the regional survey added or redrew it after 2003, and ISPRA’s 2006 land map already shows it. Most likely built between 2003 and 2006; it could be older and only redrawn.':
+    'Non è tra le abitazioni che il censimento 2011 conta in questa sezione, molte meno di quelle disegnate dal rilievo: il rilievo regionale l’ha aggiunto o ridisegnato dopo il 2003 e la mappa del suolo dell’ISPRA del 2006 già lo mostra. Costruito probabilmente tra il 2003 e il 2006; potrebbe essere più antico e solo ridisegnato.',
   'Follow me on LinkedIn': 'Seguimi su LinkedIn',
   'Hills': 'Colli', 'Show the hills': 'Mostra i colli', 'Flatten the city': 'Torna in piano',
   'Street or CAP': 'Via o CAP', 'Find a street or a postcode (CAP)': 'Cerca una via o un CAP', 'Streets': 'Strade',
@@ -343,7 +345,7 @@ const VERT = /* glsl */`
     vec3 c;
     if (uMode < 0.5) {
       c = uPalette[period];
-      if (flag == 1 || flag == 4 || flag == 5) c = mix(c, uMaquette, 0.45); // approximate dates, paler
+      if (flag == 1 || flag == 4 || flag == 5 || flag == 11) c = mix(c, uMaquette, 0.45); // approximate dates, paler
     } else if (uMode < 2.5) {
       c = uUse[int(a.z / 128.0)];
     } else {
@@ -495,6 +497,7 @@ const DATE_NOTE = [
   'Newer than the region’s 2014 survey: the footprint is from OpenStreetMap. The year is when ISPRA’s land maps first show a building here, a window where the maps skip years (there are none for 2013–14). That is when the structure is visible from above, often a year or two before it opens.',
   'Dated by hand: no source the map reads dates this building rightly, so its years come from its history (Wikipedia): when its present building was begun and when it was finished. The map shows it from the year it was finished.',
   'Built after 2006: ISPRA’s land maps show no building here in 2006 and first show one in the years given, the window between two of their maps. That is when the structure is visible from above, often a year or two before it opens. No other source dates this building on its own.',
+  'Not among the homes the 2011 census counts in this section, which are far fewer than the survey draws here: the regional survey added or redrew it after 2003, and ISPRA’s 2006 land map already shows it. Most likely built between 2003 and 2006; it could be older and only redrawn.',
 ];
 const contextLayers = layers;
 const groupsByBit = layers.flatMap(L => L.groups.map(g => ({ ...g, layer: L })));

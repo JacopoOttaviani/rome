@@ -85,7 +85,14 @@ live site with the Chrome on this machine; run it again after the data changes, 
     2012; a finished building of the 2014 survey that ISPRA shows only from 2016 is one its maps missed). Buildings already in the
     2002–03 survey cannot date from after 2005. Those the 2014 survey added or redrew come next; hash order breaks the
     ties. Before this, the newest period went to redrawn buildings at random, and three in four of them already stood
-    in 2006. The colour is the census's period, the year is
+    in 2006. The census counts the homes in use in October 2011; where the survey draws many more (in 665 sections over
+    three times as many: a district built since or not yet lived in, like Mezzocammino, whose homes took the 1950s
+    profile of the farmhouses the census counted), the census dates at most one and a half times its count, the most
+    the survey draws in nine sections in ten with no growth. The surplus is taken only from the homes the 2014 survey
+    added or redrew, new since 2006 first: those standing on ISPRA's 2006 map read 2003–2006, drawn faded, and those
+    new since 2006 take ISPRA's window. Homes of the 2003 survey stay with the census, and where they alone already
+    outnumber what it can describe, the survey only draws an old area finer than the census counts it (the INA-Casa
+    Tuscolano), so nothing is taken out. The colour is the census's period, the year is
     spread within it for the timeline; "after 2005" ends with the census, in October 2011. 144,000 buildings are dated
     this way, so read the map as the age of a neighbourhood more than of a single house.
   - **ISPRA's land maps.** ISPRA's land-consumption series for Roma Capitale draws the city's built-up land in 2006,

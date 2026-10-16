@@ -75,7 +75,8 @@ def load_sheet(sheet):
     e = e[e.COD_ISTAT.isin(KEEP) & (e.EDIFC_SOT != "02")]
     uses = read(sheet, "EDIFC_EDIFC_USO.dbf", read_geometry=False)
     # A building can have several uses, listed in no order of importance: uses.main_use picks the one that names it.
-    use = uses.groupby("CLASSREF").EDIFC_USO.agg(lambda c: main_use(list(c)))
+    ty_of = e.set_index("CLASSID").EDIFC_TY
+    use = uses.groupby("CLASSREF").EDIFC_USO.apply(lambda c: main_use(list(c), ty_of.get(c.name, "")))
     all_uses = uses.groupby("CLASSREF").EDIFC_USO.agg("|".join)  # every one, for the layers (a church inside a school)
     names = read(sheet, "EDIFC_EDIFC_NOME_T.dbf", read_geometry=False)
     name = names.drop_duplicates("CLASSREF").set_index("CLASSREF").NOME if names is not None else pd.Series(dtype=str)
